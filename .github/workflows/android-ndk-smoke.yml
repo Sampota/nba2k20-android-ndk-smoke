@@ -12,30 +12,70 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Android SDK and NDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-      - name: Install NDK and CMake
-        run: sdkmanager "ndk;30.0.16248370" "cmake;3.22.1"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
+      - name: Resolve Android SDK path
+        shell: bash
+        run: |
+          if [[ -n "${ANDROID_HOME:-}" && -d "$ANDROID_HOME" ]]; then
+            SDK_ROOT="$ANDROID_HOME"
+          elif [[ -n "${ANDROID_SDK_ROOT:-}" && -d "$ANDROID_SDK_ROOT" ]]; then
+            SDK_ROOT="$ANDROID_SDK_ROOT"
+          else
+            SDK_ROOT="$HOME/.android/sdk"
+          fi
+
+          if [[ ! -d "$SDK_ROOT" ]]; then
+            echo "Android SDK directory not found: $SDK_ROOT" >&2
+            exit 1
+          fi
+
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "Resolved Android SDK: $SDK_ROOT"
+
+      - name: Install Android NDK and CMake
+        run: sdkmanager --install "ndk;30.0.16248370" "cmake;3.22.1"
+
+      - name: Verify installed toolchain
+        shell: bash
+        run: |
+          test -f "$ANDROID_SDK_ROOT/ndk/30.0.16248370/build/cmake/android.toolchain.cmake"
+          test -x "$ANDROID_SDK_ROOT/cmake/3.22.1/bin/cmake"
+          "$ANDROID_SDK_ROOT/cmake/3.22.1/bin/cmake" --version
+          sdkmanager --list_installed | grep -E 'ndk;30.0.16248370|cmake;3.22.1'
 
       - name: Configure ARM64 Android build
-        run: >-
-          cmake -S . -B build-android
-          -DCMAKE_TOOLCHAIN_FILE="$ANDROID_SDK_ROOT/ndk/30.0.16248370/build/cmake/android.toolchain.cmake"
-          -DANDROID_ABI=arm64-v8a
-          -DANDROID_PLATFORM=android-21
-          -DCMAKE_BUILD_TYPE=Release
+        run: |
+          "$ANDROID_SDK_ROOT/cmake/3.22.1/bin/cmake" -S . -B build-android \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_SDK_ROOT/ndk/30.0.16248370/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-21 \
+            -DCMAKE_BUILD_TYPE=Release
 
       - name: Build shared library
-        run: cmake --build build-android --config Release --parallel 2
-
-      - name: Verify ELF architecture
         run: |
-          file build-android/libshotmeter_ndk_smoke.so
-          readelf -h build-android/libshotmeter_ndk_smoke.so | grep -E 'Class:|Machine:'
-          readelf -d build-android/libshotmeter_ndk_smoke.so | grep NEEDED
+          "$ANDROID_SDK_ROOT/cmake/3.22.1/bin/cmake" --build build-android --config Release --parallel 2
 
-      - name: Upload smoke-test artifact
+      - name: Verify ARM64 ELF and Android log dependency
+        shell: bash
+        run: |
+          LIB="build-android/libshotmeter_ndk_smoke.so"
+          file "$LIB"
+          readelf -h "$LIB" | grep -E 'Class:|Machine:'
+          readelf -h "$LIB" | grep -q 'Machine:.*AArch64'
+          readelf -d "$LIB" | grep 'NEEDED' | grep -F 'liblog.so'
+          readelf --dyn-syms --wide "$LIB" | grep -F 'shotmeter_ndk_smoke_probe'
+
+      - name: Upload ARM64 smoke-test artifact
         uses: actions/upload-artifact@v4
         with:
           name: shotmeter-android-arm64-ndk-smoke
