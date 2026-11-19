@@ -1,0 +1,43 @@
+name: Android NDK ARM64 smoke test
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK and CMake
+        run: sdkmanager "ndk;30.0.16248370" "cmake;3.22.1"
+
+      - name: Configure ARM64 Android build
+        run: >-
+          cmake -S . -B build-android
+          -DCMAKE_TOOLCHAIN_FILE="$ANDROID_SDK_ROOT/ndk/30.0.16248370/build/cmake/android.toolchain.cmake"
+          -DANDROID_ABI=arm64-v8a
+          -DANDROID_PLATFORM=android-21
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build shared library
+        run: cmake --build build-android --config Release --parallel 2
+
+      - name: Verify ELF architecture
+        run: |
+          file build-android/libshotmeter_ndk_smoke.so
+          readelf -h build-android/libshotmeter_ndk_smoke.so | grep -E 'Class:|Machine:'
+          readelf -d build-android/libshotmeter_ndk_smoke.so | grep NEEDED
+
+      - name: Upload smoke-test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-android-arm64-ndk-smoke
+          path: build-android/libshotmeter_ndk_smoke.so
+          if-no-files-found: error
