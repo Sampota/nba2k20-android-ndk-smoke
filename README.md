@@ -177,3 +177,29 @@ Artifact SHA-256:
 to the game on-device; its runtime threshold callbacks have not been captured.
 It does not yet implement GREEN GIANT audio/visual effects, eligibility
 filtering, deduplication, or permanent auto-loading.
+
+
+## v41 stock feedback-path observer and diagnostic reset
+
+The v41 candidate retains the v40 timing taps and adds read-only observation
+of `ShotFeedbackComponent::ShouldShow`, `Draw`, and `DoDraw(int)`.
+Each proxy forwards the original call once and then records its result or
+call count.
+
+The diagnostic file is
+`files/shotmeter.dobby-v41-feedback-diagnostic`. It refreshes once per second
+for the lifetime of the game process. To clear counters and last-sample values
+without reinstalling hooks, run:
+
+```sh
+adb shell run-as com.t2ksports.nba2k20and touch files/shotmeter.dobby-v41-reset
+adb shell run-as com.t2ksports.nba2k20and cat files/shotmeter.dobby-v41-feedback-diagnostic
+```
+
+The agent consumes/removes the marker, increments `diagnostic_reset_count`,
+and keeps hooks installed. This is a diagnostic reset only.
+
+**Important:** v41 does not yet draw a custom GREEN GIANT overlay. It does not
+change original meter state/materials, shot timing, or audio/rendering. Its
+purpose is to establish the stock visual feedback gate and draw lifecycle
+before a separately owned custom visual is implemented.
