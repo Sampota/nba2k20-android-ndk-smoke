@@ -99,3 +99,12 @@ Do not replace the current app-private `files/libshotmeter.so` until a v38 artif
 - Final deliverable remains one custom `libshotmeter.so`; do not require the user to install multiple hook-engine libraries.
 - JVMTI attach works here because this particular installed package is debuggable. This is not a permanent injection method for an ordinary non-debuggable production APK.
 - Never describe hooks or GREEN GIANT as working until their execution is verified in the running game.
+
+
+## v38 CI iteration log
+
+The first Dobby CI attempt compiled through configure and then failed because the pinned upstream ARM64 bridge assembly used Mach-O `@PAGE`/`@PAGEOFF` relocations. A follow-up rewrite using explicit `:pg_hi21:` was also rejected by the Android NDK assembler. The current CMake patch now uses an ELF ADRP symbol reference and an ELF `:lo12:` addend instead; this has not yet been confirmed by a successful build.
+
+The next CI attempt then passed the earlier assembly stage but exposed a source/header mismatch in the pinned Dobby revision: Linux/Android `ProcessRuntime.cc` accesses `RuntimeModule::load_address`, while the shared structure declared only `base`. The current CMake patch changes that structure to an anonymous union exposing both names. This is a compatibility shim in the fetched Dobby source only; it does not touch the user's phone or game files.
+
+The latest workflow run is checking that compatibility patch. A successful compile and artifact verification are still required; no v38 binary has been released for device testing.
