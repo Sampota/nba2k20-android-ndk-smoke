@@ -401,3 +401,29 @@ set_target_properties(shotmeter_dobby_v42_second_meter_agent PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+
+# v43 is a read-only player-anchor diagnostic. It captures the player's head
+# world position and projects it through the saved player-icon view from the
+# stock DoDraw callback. It does not draw or modify any game-owned state.
+set(_shotmeter_dobby_v43_agent_map
+    "\${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v43.map.txt")
+file(WRITE "\${_shotmeter_dobby_v43_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };" )
+add_library(shotmeter_dobby_v43_coordinate_agent SHARED
+    src/shotmeter_dobby_v43_coordinate_diagnostic.cpp)
+target_link_libraries(shotmeter_dobby_v43_coordinate_agent PRIVATE
+    dobby_static \${android_log} \${android_dl})
+target_compile_features(shotmeter_dobby_v43_coordinate_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v43_coordinate_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v43_coordinate_agent PRIVATE
+    \${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=\${_shotmeter_dobby_v43_agent_map}")
+set_target_properties(shotmeter_dobby_v43_coordinate_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v43"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
