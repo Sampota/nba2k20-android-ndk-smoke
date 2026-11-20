@@ -460,21 +460,21 @@ set_target_properties(shotmeter_dobby_v44_coordinate_agent PROPERTIES
 # compares it with the GUI parallel view. VCView_Project receives private
 # 0x240-byte copies only; no game-owned view bytes are modified.
 set(_shotmeter_dobby_v45_agent_map
-    "\${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v45.map.txt")
-file(WRITE "\${_shotmeter_dobby_v45_agent_map}"
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v45.map.txt")
+file(WRITE "${_shotmeter_dobby_v45_agent_map}"
     "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
 add_library(shotmeter_dobby_v45_saved_view_agent
     SHARED src/shotmeter_dobby_v45_saved_view_diagnostic.cpp)
 target_link_libraries(shotmeter_dobby_v45_saved_view_agent PRIVATE
-    dobby_static \${android_log} \${android_dl})
+    dobby_static ${android_log} ${android_dl})
 target_compile_features(shotmeter_dobby_v45_saved_view_agent PRIVATE cxx_std_17)
 target_compile_options(shotmeter_dobby_v45_saved_view_agent PRIVATE
     -Wall -Wextra -Werror -fvisibility=hidden)
 target_link_options(shotmeter_dobby_v45_saved_view_agent PRIVATE
-    \${_shadowhook_arch_link_flags}
+    ${_shadowhook_arch_link_flags}
     -Wl,--exclude-libs,ALL
     -Wl,--gc-sections
-    "-Wl,--version-script=\${_shotmeter_dobby_v45_agent_map}")
+    "-Wl,--version-script=${_shotmeter_dobby_v45_agent_map}")
 set_target_properties(shotmeter_dobby_v45_saved_view_agent PROPERTIES
     OUTPUT_NAME "shotmeter-v45"
     CXX_VISIBILITY_PRESET hidden
