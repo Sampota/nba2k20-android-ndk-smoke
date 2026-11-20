@@ -453,3 +453,30 @@ set_target_properties(shotmeter_dobby_v44_coordinate_agent PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+
+# v45 bypasses the getter's deliberate NULL gate during Draw2D, reads the
+# manager's saved perspective view using the ASLR-adjusted module base, and
+# compares it with the GUI parallel view. VCView_Project receives private
+# 0x240-byte copies only; no game-owned view bytes are modified.
+set(_shotmeter_dobby_v45_agent_map
+    "\${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v45.map.txt")
+file(WRITE "\${_shotmeter_dobby_v45_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v45_saved_view_agent
+    SHARED src/shotmeter_dobby_v45_saved_view_diagnostic.cpp)
+target_link_libraries(shotmeter_dobby_v45_saved_view_agent PRIVATE
+    dobby_static \${android_log} \${android_dl})
+target_compile_features(shotmeter_dobby_v45_saved_view_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v45_saved_view_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v45_saved_view_agent PRIVATE
+    \${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=\${_shotmeter_dobby_v45_agent_map}")
+set_target_properties(shotmeter_dobby_v45_saved_view_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v45"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
