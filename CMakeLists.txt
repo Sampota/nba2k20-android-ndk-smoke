@@ -63,3 +63,25 @@ set_target_properties(shotmeter_probe PROPERTIES
     C_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+# Manifest-selected NativeActivity entry library for a separate test APK.
+# The clean original game ELF is not linked or modified; the proxy dlopens it
+# under its existing DT_SONAME and forwards the original NativeActivity/JNI APIs.
+find_library(android_dl dl REQUIRED)
+add_library(shotmeter_activity_proxy SHARED src/activity_proxy.c)
+target_include_directories(shotmeter_activity_proxy PRIVATE src)
+target_link_libraries(shotmeter_activity_proxy PRIVATE
+    shotmeter_probe
+    ${android_log}
+    ${android_dl}
+)
+target_compile_features(shotmeter_activity_proxy PRIVATE c_std_11)
+target_compile_options(shotmeter_activity_proxy PRIVATE
+    -Wall -Wextra -Werror
+    -fvisibility=hidden
+)
+set_target_properties(shotmeter_activity_proxy PROPERTIES
+    OUTPUT_NAME "nba2k20_clean_opt"
+    C_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
