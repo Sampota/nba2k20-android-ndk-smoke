@@ -1,0 +1,16 @@
+plugins {
+    id 'com.android.application' version '8.7.3'
+}
+
+android {
+    namespace 'com.sampota.nba2k20obbprobe'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.sampota.nba2k20obbprobe'
+        minSdk 21
+        targetSdk 28
+        versionCode 1
+        versionName '1.0'
+    }
+}
