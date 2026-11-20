@@ -180,6 +180,9 @@ int shotmeter_probe_install(void) {
     int result = SHOTMETER_PROBE_OK;
 
     const int init_result = shadowhook_init(SHADOWHOOK_MODE_SHARED, false);
+    if (init_result == SHADOWHOOK_ERRNO_OK) {
+        (void)snprintf(g_shadowhook_init_message, sizeof(g_shadowhook_init_message), "success");
+    }
     if (init_result != SHADOWHOOK_ERRNO_OK) {
         const char *init_message = shadowhook_to_errmsg(init_result);
         g_shadowhook_init_error = init_result;
