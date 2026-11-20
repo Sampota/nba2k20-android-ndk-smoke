@@ -65,8 +65,8 @@ static std::atomic<uint32_t> g_projection_valid{0};
 static std::atomic<int32_t> g_last_project_status{0};
 static std::atomic<uintptr_t> g_last_actor{0};
 static std::atomic<uintptr_t> g_last_view{0};
-static std::atomic<uint32_t> g_last_head_bits[4]{};
-static std::atomic<uint32_t> g_last_screen_bits[3]{};
+static std::atomic<uint32_t> g_last_head_bits[4] = {0U, 0U, 0U, 0U};
+static std::atomic<uint32_t> g_last_screen_bits[3] = {0U, 0U, 0U};
 static std::atomic<uint32_t> g_last_project_return_bits{0};
 
 static volatile int g_test_bias = 100;
