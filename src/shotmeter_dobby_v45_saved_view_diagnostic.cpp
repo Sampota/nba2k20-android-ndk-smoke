@@ -400,10 +400,15 @@ static void write_diagnostic(void) {
         status = "DODRAW_OBSERVED_WITHOUT_HEAD_CAPTURE";
     } else if (saved_reads == 0) {
         status = "HEAD_CAPTURED_MANAGER_VIEW_NOT_READ";
-    } else if (saved_calls != 0 && saved_valid == 0) {
-        status = "SAVED_VIEW_PROJECTION_INVALID";
+    } else if (g_active_projection_valid.load() != 0) {
+        status = "ACTIVE_RENDER_STATE_HEAD_PROJECTION_CAPTURED";
     } else if (saved_valid != 0) {
-        status = "SAVED_VIEW_HEAD_PROJECTION_CAPTURED";
+        status = "MANAGER_SAVED_VIEW_HEAD_PROJECTION_CAPTURED";
+    } else if (parallel_valid != 0) {
+        status = "GUI_PARALLEL_VIEW_HEAD_PROJECTION_CAPTURED";
+    } else if (saved_calls != 0 || g_active_projection_calls.load() != 0 ||
+               g_parallel_projection_calls.load() != 0) {
+        status = "ALL_VIEW_PROJECTIONS_INVALID";
     } else {
         status = "HEAD_CAPTURED_WAITING_FOR_PROJECTION";
     }
@@ -507,11 +512,6 @@ static void write_diagnostic(void) {
         load_float_bits(g_last_saved_reciprocal_bits),
         parallel_views, parallel_calls, parallel_valid,
         g_last_parallel_project_status.load(),
-        reinterpret_cast<void *>(g_last_parallel_view.load()),
-        load_float_bits(g_last_parallel_screen_bits[0]),
-        load_float_bits(g_last_parallel_screen_bits[1]),
-        load_float_bits(g_last_parallel_screen_bits[2]),
-        load_float_bits(g_last_parallel_reciprocal_bits),
         g_last_manager_draw_flag.load(),
         g_manager_flag_zero_samples.load(),
         g_manager_flag_nonzero_samples.load(),
@@ -522,6 +522,11 @@ static void write_diagnostic(void) {
         load_float_bits(g_last_active_screen_bits[1]),
         load_float_bits(g_last_active_screen_bits[2]),
         load_float_bits(g_last_active_reciprocal_bits),
+        reinterpret_cast<void *>(g_last_parallel_view.load()),
+        load_float_bits(g_last_parallel_screen_bits[0]),
+        load_float_bits(g_last_parallel_screen_bits[1]),
+        load_float_bits(g_last_parallel_screen_bits[2]),
+        load_float_bits(g_last_parallel_reciprocal_bits),
         reinterpret_cast<void *>(g_last_actor.load()),
         load_float_bits(g_last_head_bits[0]),
         load_float_bits(g_last_head_bits[1]),
