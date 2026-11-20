@@ -35,6 +35,7 @@ set_target_properties(dobby_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # source/ directory; expose that root explicitly on both upstream targets.
 target_include_directories(dobby PRIVATE "${dobby_source_SOURCE_DIR}/source")
 target_include_directories(dobby_static PRIVATE "${dobby_source_SOURCE_DIR}/source")
+set_property(TARGET dobby PROPERTY EXCLUDE_FROM_ALL TRUE)
 
 # This pinned Dobby POSIX file still includes a removed Cpu.h. Its only
 # required ClearCache declaration is already provided by dobby_internal.h.
@@ -55,11 +56,11 @@ set(_dobby_arm64_bridge
 file(READ "${_dobby_arm64_bridge}" _dobby_arm64_bridge_contents)
 string(REPLACE
     "adrp TMP_REG_0, cdecl(common_closure_bridge_handler)@PAGE"
-    "adrp TMP_REG_0, cdecl(common_closure_bridge_handler)"
+    "adrp TMP_REG_0, :got:cdecl(common_closure_bridge_handler)"
     _dobby_arm64_bridge_contents "${_dobby_arm64_bridge_contents}")
 string(REPLACE
     "add TMP_REG_0, TMP_REG_0, cdecl(common_closure_bridge_handler)@PAGEOFF"
-    "add TMP_REG_0, TMP_REG_0, :lo12:cdecl(common_closure_bridge_handler)"
+    "ldr TMP_REG_0, [TMP_REG_0, :got_lo12:cdecl(common_closure_bridge_handler)]"
     _dobby_arm64_bridge_contents "${_dobby_arm64_bridge_contents}")
 file(WRITE "${_dobby_arm64_bridge}" "${_dobby_arm64_bridge_contents}")
 
