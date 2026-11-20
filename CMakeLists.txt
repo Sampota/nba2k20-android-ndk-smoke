@@ -17,6 +17,9 @@ FetchContent_MakeAvailable(shadowhook_source)
 # ships Clang 21, which adds diagnostics not fatal under its older toolchains.
 # Keep upstream warnings visible but non-fatal; our own probe remains -Werror.
 target_compile_options(shadowhook PRIVATE -Wno-error)
+# Upstream's common version map lists optional ARM32 VFP helpers; this target
+# is ARM64-only, so allow the unused architecture-specific export patterns.
+target_link_options(shadowhook PRIVATE -Wl,--undefined-version)
 
 find_library(android_log log REQUIRED)
 
