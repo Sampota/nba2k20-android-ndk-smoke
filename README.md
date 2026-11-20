@@ -203,3 +203,13 @@ and keeps hooks installed. This is a diagnostic reset only.
 change original meter state/materials, shot timing, or audio/rendering. Its
 purpose is to establish the stock visual feedback gate and draw lifecycle
 before a separately owned custom visual is implemented.
+
+
+v41 CI run #88 passed (build, ELF checks, and upload):
+[GitHub Actions run #88](https://github.com/Sampota/nba2k20-android-ndk-smoke/actions/runs/44740074133).
+The extracted `libshotmeter-v41.so` is an ELF64 AArch64 library, 816,072
+bytes, SHA-256
+`c41b72b0bdce7a1b588266c1d4074e3333d243c00249d99d5b23f9ba0d277f45`.
+All LOAD segments use 16 KB alignment; only Android system shared libraries
+are required. On-device behavior is not yet verified and v41 is not yet the
+custom GREEN GIANT visual.
