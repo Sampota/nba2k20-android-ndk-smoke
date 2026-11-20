@@ -70,26 +70,28 @@ A separate v38 diagnostic candidate has been added to the repository:
 - The agent writes `files/shotmeter.dobby-diagnostic` with the baseline, Dobby return code, trampoline result, patched result, and PASS/FAIL status.
 - The workflow checks that the new ELF is AArch64, exports `Agent_OnAttach`/ `Agent_OnUnload`, and has no separate Dobby, ShadowHook, or shared C++ runtime dependency.
 
-This is only a build and engine-feasibility test. Dobby's Android/ARM64 support in its upstream repository does not establish compatibility with this exact Android 15 device. Its self-hook must pass CI and then pass on-device before it is used against game functions.
+This is only a build and engine-feasibility test. Dobby's Android/ARM64 support in its upstream repository does not establish compatibility with this exact Android 15 device. CI has now passed and the artifact has been inspected, but the self-hook must still pass on the phone before Dobby is used against game functions.
 
 ## Current build/test status
 
-- v37: built, transferred, checksum verified, attached; ShadowHook init failed with error 12.
-- v38 source/CMake/workflow: added to the repository for CI evaluation.
-- v38 build artifact: not yet verified.
-- v38 on-device test: not yet run.
+- v37: built, transferred, checksum verified, attached; ShadowHook init failed with error 12 before any game hooks were registered.
+- v38 source/CMake/workflow: added to the repository. The latest workflow run #70 passed all build, ELF, dependency, export, and artifact-upload checks.
+- v38 artifact: inspected from the CI artifact. The extracted `libshotmeter-v38.so` is 755,432 bytes, ELF64 AArch64, Android API 21 minimum, and has 16 KB (`0x4000`) LOAD-segment alignment.
+- SHA-256 of extracted `libshotmeter-v38.so`: `f510fce0c0c32a5be1413d98975ea17058d452e7aa6026c45833f92d84a68b62`.
+- Dynamic dependencies are only Android system libraries: `liblog.so`, `libdl.so`, `libm.so`, and `libc.so`. No `libdobby.so`, `libshadowhook.so`, or `libc++_shared.so` dependency is present.
+- The ELF exports `Agent_OnAttach` and `Agent_OnUnload`, and the isolated self-hook diagnostic is included.
+- v38 on-device self-hook: not yet run.
 - NBA 2K20 hook registration: not attempted with Dobby.
 - GREEN GIANT visual/audio effects: not implemented.
 
-Do not replace the current app-private `files/libshotmeter.so` until a v38 artifact is available, inspected, and explicitly ready for the phone test. The existing v37 library and backup may be left in place for reference.
+The v38 candidate is available as its own file, `libshotmeter-v38.so`. For the phone test, stage it under that unique name in the app-private `files/` folder and attach it by that path. Do **not** overwrite the existing v37 `files/libshotmeter.so` or its backup. The original APK, original game library, and OBB remain untouched.
 
 ## Next steps
 
-1. Confirm the GitHub Actions build compiles the pinned Dobby static target and emits `libshotmeter-v38.so`.
-2. Inspect the artifact's ELF architecture, dynamic dependencies, exported JVMTI entry points, and SHA-256.
-3. Only after those checks pass, provide the user a safe staging/attach test for the new diagnostic candidate.
-4. If the on-device self-hook reports PASS, resolve the three already-audited NBA 2K20 symbols and add read-only capture hooks using Dobby's original-function trampolines.
-5. Verify actual in-game callbacks before designing the GREEN GIANT trigger or modifying any rendering/audio state.
+1. Transfer the verified v38 candidate to the phone and stage it as `files/libshotmeter-v38.so`, preserving the v37 file.
+2. Attach v38 to the running debuggable game process and read `files/shotmeter.dobby-diagnostic`.
+3. If the self-hook reports PASS with baseline 105, original trampoline 105, and patched result 112, then proceed to read-only capture hooks for the three already-audited NBA 2K20 functions.
+4. Verify actual in-game callbacks before designing the GREEN GIANT trigger or modifying any rendering/audio state.
 
 ## User constraints and safety boundary
 
@@ -117,3 +119,20 @@ The next CI run showed that merely adding Dobby's source include directory could
 
 
 The corrected stale-header patch cleared the POSIX source compile stage. CI then showed the Dobby static archive building successfully, but the unused upstream `libdobby.so` target failed to link because its ARM64 bridge had a non-PIC direct relocation. The current candidate therefore excludes that unused shared target and rewrites the bridge reference as an AArch64 GOT lookup, which is appropriate for the single shared JVMTI agent that will embed Dobby. This final PIC adjustment is not yet proven; the next workflow run must pass the agent link and ELF checks.
+
+
+## v38 artifact verification record
+
+- GitHub Actions workflow: [run #70](https://github.com/Sampota/nba2k20-android-ndk-smoke/actions/runs/44705264386).
+- Result: `success`; all 17 build, verification, and upload steps completed successfully.
+- Uploaded artifact: `shotmeter-dobby-v38-diagnostic-arm64` (artifact ID `14614497527`).
+- ZIP contents: exactly one file, `libshotmeter-v38.so`.
+- Extracted library size: 755,432 bytes.
+- Extracted library SHA-256: `f510fce0c0c32a5be1413d98975ea17058d452e7aa6026c45833f92d84a68b62`.
+- ELF: 64-bit little-endian AArch64 shared object, Android API 21 minimum, NDK r30.
+- Program LOAD segment alignment: `0x4000` (16 KB).
+- Dynamic dependencies: `liblog.so`, `libdl.so`, `libm.so`, `libc.so` only.
+- No extra hook-engine or shared C++ runtime DSO is required.
+- Exported entry points: `Agent_OnAttach`, `Agent_OnUnload`.
+
+CI success proves the candidate built and passed static artifact checks. It does not prove the Dobby self-hook succeeds at runtime on the user's Android 15 phone. That remains the next test. The artifact's ELF SONAME remains `libshotmeter-v38.so`; keep the staged file under that name for the diagnostic test rather than renaming or replacing the old v37 file.
