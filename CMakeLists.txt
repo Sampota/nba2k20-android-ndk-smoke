@@ -39,7 +39,7 @@ set(_dobby_arm64_bridge
 file(READ "${_dobby_arm64_bridge}" _dobby_arm64_bridge_contents)
 string(REPLACE
     "adrp TMP_REG_0, cdecl(common_closure_bridge_handler)@PAGE"
-    "adrp TMP_REG_0, :pg_hi21:cdecl(common_closure_bridge_handler)"
+    "adrp TMP_REG_0, cdecl(common_closure_bridge_handler)"
     _dobby_arm64_bridge_contents "${_dobby_arm64_bridge_contents}")
 string(REPLACE
     "add TMP_REG_0, TMP_REG_0, cdecl(common_closure_bridge_handler)@PAGEOFF"
