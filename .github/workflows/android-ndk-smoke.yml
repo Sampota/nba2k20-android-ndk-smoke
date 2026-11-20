@@ -81,14 +81,16 @@ jobs:
         run: |
           SMOKE="build-android/libshotmeter_ndk_smoke.so"
           PROBE="build-android/libshotmeter_probe.so"
+          PROXY="build-android/libnba2k20_clean_opt.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
           test -s "$PROBE"
+          test -s "$PROXY"
           test -n "$SHADOWHOOK"
           test -s "$SHADOWHOOK"
 
-          for LIB in "$SMOKE" "$PROBE" "$SHADOWHOOK"; do
+          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$SHADOWHOOK"; do
             echo "=== $LIB ==="
             file "$LIB"
             readelf -h "$LIB" | grep -E 'Class:|Machine:'
@@ -97,7 +99,11 @@ jobs:
 
           readelf -d "$SMOKE" | grep 'NEEDED' | grep -F 'liblog.so'
           readelf -d "$PROBE" | grep 'NEEDED' | grep -F 'libshadowhook.so'
+          readelf -d "$PROXY" | grep 'NEEDED' | grep -F 'libshotmeter_probe.so'
+          readelf -d "$PROXY" | grep 'SONAME' | grep -F 'libnba2k20_clean_opt.so'
           readelf --dyn-syms --wide "$SMOKE" | grep -F 'shotmeter_ndk_smoke_probe'
+          readelf --dyn-syms --wide "$PROXY" | grep -F 'ANativeActivity_onCreate'
+          readelf --dyn-syms --wide "$PROXY" | grep -F 'JNI_OnLoad'
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_install'
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_draw_sample_count'
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_release_sample_count'
@@ -106,6 +112,7 @@ jobs:
           mkdir -p build-android/artifacts/arm64-v8a
           cp "$SMOKE" build-android/artifacts/arm64-v8a/
           cp "$PROBE" build-android/artifacts/arm64-v8a/
+          cp "$PROXY" build-android/artifacts/arm64-v8a/
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Upload Android ARM64 smoke-test artifact
@@ -120,6 +127,16 @@ jobs:
         with:
           name: shotmeter-readonly-capture-arm64
           path: |
+            build-android/artifacts/arm64-v8a/libshotmeter_probe.so
+            build-android/artifacts/arm64-v8a/libshadowhook.so
+          if-no-files-found: error
+
+      - name: Upload NativeActivity proxy candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-native-proxy-candidate-arm64
+          path: |
+            build-android/artifacts/arm64-v8a/libnba2k20_clean_opt.so
             build-android/artifacts/arm64-v8a/libshotmeter_probe.so
             build-android/artifacts/arm64-v8a/libshadowhook.so
           if-no-files-found: error
