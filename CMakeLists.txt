@@ -31,6 +31,22 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(dobby_source)
 set_target_properties(dobby_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# The pinned upstream ARM64 bridge assembly spells its PC-relative symbol
+# relocations using Mach-O @PAGE/@PAGEOFF even in its Android source list.
+# Rewrite only these two operands to their equivalent AArch64 ELF relocations.
+set(_dobby_arm64_bridge
+    "${dobby_source_SOURCE_DIR}/source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_bridge_arm64.asm")
+file(READ "${_dobby_arm64_bridge}" _dobby_arm64_bridge_contents)
+string(REPLACE
+    "adrp TMP_REG_0, cdecl(common_closure_bridge_handler)@PAGE"
+    "adrp TMP_REG_0, :pg_hi21:cdecl(common_closure_bridge_handler)"
+    _dobby_arm64_bridge_contents "${_dobby_arm64_bridge_contents}")
+string(REPLACE
+    "add TMP_REG_0, TMP_REG_0, cdecl(common_closure_bridge_handler)@PAGEOFF"
+    "add TMP_REG_0, TMP_REG_0, :lo12:cdecl(common_closure_bridge_handler)"
+    _dobby_arm64_bridge_contents "${_dobby_arm64_bridge_contents}")
+file(WRITE "${_dobby_arm64_bridge}" "${_dobby_arm64_bridge_contents}")
+
 # ShadowHook v2.0.1's upstream CMake enables -Weverything -Werror. NDK 30
 # ships Clang 21, which adds diagnostics not fatal under its older toolchains.
 # Keep upstream warnings visible but non-fatal; our own probe remains -Werror.
