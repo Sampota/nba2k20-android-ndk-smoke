@@ -1,5 +1,6 @@
 #include <android/log.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <string.h>
