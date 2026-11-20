@@ -22,16 +22,21 @@ static const char kDoDrawSymbol[] =
     "_ZN22ShotIndicatorComponent6DoDrawEP12AI_NBA_ACTOR";
 static const char kShotReleasedSymbol[] =
     "_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff";
+static const char kSetMaterialEnabledSymbol[] =
+    "_ZNK22ShotIndicatorComponent18SetMaterialEnabledE10string_crc5_bool";
 
 typedef void (*shot_indicator_do_draw_fn)(void *component, void *actor);
 typedef void (*user_shot_released_fn)(void *actor, int32_t timing, float arg0, float arg1);
+typedef void (*set_material_enabled_fn)(void *component, uint32_t material_crc, bool enabled);
 
 static void *g_do_draw_stub = NULL;
 static void *g_shot_released_stub = NULL;
+static void *g_set_material_enabled_stub = NULL;
 
 static atomic_flag g_install_lock = ATOMIC_FLAG_INIT;
 static _Atomic uint32_t g_draw_samples = 0;
 static _Atomic uint32_t g_release_samples = 0;
+static _Atomic uint32_t g_material_samples = 0;
 static _Atomic uint32_t g_last_state = UINT32_MAX;
 static _Atomic int32_t g_last_timing = INT32_MIN;
 
@@ -39,7 +44,8 @@ enum {
     SHOTMETER_PROBE_OK = 0,
     SHOTMETER_PROBE_DRAW_HOOK_FAILED = 1,
     SHOTMETER_PROBE_RELEASE_HOOK_FAILED = 2,
-    SHOTMETER_PROBE_INIT_FAILED = 4
+    SHOTMETER_PROBE_MATERIAL_HOOK_FAILED = 4,
+    SHOTMETER_PROBE_INIT_FAILED = 8
 };
 
 static uint32_t read_u32(const void *base, size_t offset) {
@@ -124,6 +130,39 @@ static void user_shot_released_proxy(void *actor, int32_t timing, float arg0, fl
     SHADOWHOOK_POP_STACK();
 }
 
+
+static void set_material_enabled_proxy(void *component, uint32_t material_crc, bool enabled) {
+    SHADOWHOOK_CALL_PREV(set_material_enabled_proxy, set_material_enabled_fn,
+                         component, material_crc, enabled);
+
+    if (component != NULL) {
+        const uint32_t sample = atomic_fetch_add_explicit(
+            &g_material_samples, 1, memory_order_relaxed) + 1;
+
+        /*
+         * SetMaterialEnabled is an exported const member function. Its first
+         * argument is the ShotIndicatorComponent instance, followed by the
+         * 32-bit material string CRC and the bool enable flag. Capture the
+         * component's state/timing context after the original call. No game
+         * memory is written by this proxy.
+         */
+        const uint32_t state = read_u32(component, 0x18);
+        const int32_t timing = read_i32(component, 0x1C);
+        const float live_value = read_f32(component, 0x10);
+        const float visual_progress = read_f32(component, 0x14);
+
+        /* Startup/state transitions are captured in detail; steady-state is throttled. */
+        if (sample <= 256 || sample % 64 == 0) {
+            LOGI("material toggle sample=%u component=%p key=0x%08x enabled=%d "
+                 "state=%u timing=%d live=%.5f progress=%.5f",
+                 sample, component, material_crc, enabled ? 1 : 0,
+                 state, timing, live_value, visual_progress);
+        }
+    }
+
+    SHADOWHOOK_POP_STACK();
+}
+
 /*
  * Call only after the original game ELF has been loaded into the process.
  * The function does not load, patch, or modify the original library itself.
@@ -179,8 +218,26 @@ int shotmeter_probe_install(void) {
         }
     }
 
-    if (g_do_draw_stub != NULL && g_shot_released_stub != NULL) {
-        LOGI("read-only capture hooks ready; no meter, release timing, audio, or rendering values are modified");
+    if (g_set_material_enabled_stub == NULL) {
+        g_set_material_enabled_stub = shadowhook_hook_sym_name(
+            kTargetLibrary, kSetMaterialEnabledSymbol,
+            (void *)set_material_enabled_proxy,
+            NULL);
+
+        if (g_set_material_enabled_stub == NULL) {
+            const int error = shadowhook_get_errno();
+            LOGE("SetMaterialEnabled hook failed: code=%d message=%s",
+                 error, shadowhook_to_errmsg(error));
+            result |= SHOTMETER_PROBE_MATERIAL_HOOK_FAILED;
+        } else {
+            LOGI("SetMaterialEnabled hook registered: stub=%p errno=%d",
+                 g_set_material_enabled_stub, shadowhook_get_errno());
+        }
+    }
+
+    if (g_do_draw_stub != NULL && g_shot_released_stub != NULL &&
+        g_set_material_enabled_stub != NULL) {
+        LOGI("three read-only capture hooks ready; no meter, release timing, audio, or rendering values are modified");
     }
 
     atomic_flag_clear_explicit(&g_install_lock, memory_order_release);
@@ -198,6 +255,11 @@ uint32_t shotmeter_probe_get_release_sample_count(void) {
 }
 
 __attribute__((visibility("default")))
+uint32_t shotmeter_probe_get_material_sample_count(void) {
+    return atomic_load_explicit(&g_material_samples, memory_order_relaxed);
+}
+
+__attribute__((visibility("default")))
 const char *shotmeter_probe_get_version(void) {
-    return "shotmeter-readonly-probe-0.1.0";
+    return "shotmeter-readonly-probe-0.2.0";
 }
