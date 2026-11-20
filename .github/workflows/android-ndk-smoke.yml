@@ -118,6 +118,9 @@ jobs:
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_version'
           readelf --dyn-syms --wide "$AGENT" | grep -F 'Agent_OnAttach'
           readelf --dyn-syms --wide "$AGENT" | grep -F 'Agent_OnUnload'
+          strings "$AGENT" | grep -F 'shotmeter.library-loaded'
+          strings "$AGENT" | grep -F 'shotmeter.agent-attached'
+          strings "$AGENT" | grep -F 'shotmeter.probe-result'
 
           mkdir -p build-android/artifacts/arm64-v8a
           cp "$SMOKE" build-android/artifacts/arm64-v8a/
