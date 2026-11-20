@@ -12,8 +12,8 @@ modification.
 - Android NDK: `30.0.16248370`
 - ABI: `arm64-v8a`
 - Android API floor: `android-21`
-- CMake: `3.22.1`
-- Output: `libshotmeter_ndk_smoke.so`
+- CMake: `4.0.2` (required by pinned ShadowHook v2.0.1)
+- Outputs: `libshotmeter_ndk_smoke.so`, `libshotmeter_probe.so`, and `libnba2k20_clean_opt.so` (proxy candidate)
 
 The GitHub Actions workflow runs on pushes to `main` and can also be started
 manually from the repository's **Actions** tab.
@@ -70,3 +70,28 @@ The workflow validates the AArch64 ELF headers, the probe's dependency on
 compile is not evidence that the hook works inside NBA 2K20. Runtime hook
 installation and observed logs still require a separately integrated test APK
 and an on-device startup/gameplay test.
+
+
+## NativeActivity forwarding proxy candidate
+
+The repository now also builds a separate ARM64 NativeActivity proxy candidate as
+`libnba2k20_clean_opt.so`. It exports `ANativeActivity_onCreate` and
+`JNI_OnLoad`, loads the original game ELF by its existing SONAME
+(`libnba_clean_opt.so`), forwards both entry points, and calls the read-only
+probe installer before forwarding NativeActivity startup.
+
+The intended separate test APK layout is:
+
+- `libnba2k20_clean_opt.so` — the new proxy candidate selected by the existing
+  manifest library name
+- `libnba_clean_opt.so` — the untouched original game library, renamed only
+  to match its existing DT_SONAME
+- `libshotmeter_probe.so` — read-only capture hooks
+- `libshadowhook.so` — pinned hook-engine dependency
+
+This layout has **not** been packaged into an APK or tested on a device. The
+proxy candidate is not ready for users to install. The NativeActivity forwarding
+path, Android linker namespace lookup, protected application startup, original
+JNI initialization order, and actual in-game hook execution remain unverified.
+The CI checks only confirm the ELF architecture, required entry-point exports,
+DT_SONAME, and declared shared-library dependencies.
