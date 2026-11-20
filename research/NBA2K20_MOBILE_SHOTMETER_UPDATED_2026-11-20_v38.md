@@ -111,3 +111,6 @@ The latest workflow run is checking that compatibility patch. A successful compi
 
 
 A subsequent CI pass cleared the earlier `OSMemory` include-cycle and `MemRange::start()` issues after the narrow CMake compatibility edits. It then stopped at Dobby's POSIX code-patching file because the upstream target did not expose its own `source/` include root to that translation unit. The latest CMake change adds this source include path to both Dobby targets. The new workflow run must still confirm whether this gets through the remaining compile and link stages.
+
+
+The next CI run showed that merely adding Dobby's source include directory could not solve the POSIX compile error: the referenced `core/arch/Cpu.h` is absent from the pinned revision. The CMake patch has now been tightened to replace that stale include with the existing `PlatformUnifiedInterface/ExecMemory/ClearCacheTool.h` header, which is already included by Dobby's internal header. This corrected patch is awaiting CI verification.
