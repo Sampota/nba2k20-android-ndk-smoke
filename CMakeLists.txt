@@ -380,6 +380,7 @@ set_target_properties(shotmeter_dobby_v41_feedback_agent PROPERTIES
 # modify the component, its material/resource, or the original shot timing.
 find_library(android_egl EGL REQUIRED)
 find_library(android_glesv3 GLESv3 REQUIRED)
+find_library(android_opensles OpenSLES REQUIRED)
 set(_shotmeter_dobby_v42_agent_map
     "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v42.map.txt")
 file(WRITE "${_shotmeter_dobby_v42_agent_map}"
@@ -476,5 +477,31 @@ target_link_options(shotmeter_dobby_v46_player_anchored_agent PRIVATE
     "-Wl,--version-script=${_shotmeter_dobby_v46_agent_map}")
 set_target_properties(shotmeter_dobby_v46_player_anchored_agent PROPERTIES
     OUTPUT_NAME "shotmeter-v46"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
+
+
+# v47 replaces the small circular strip with a tall tapered crescent meter.
+# Class 3 from EVT_UserShotReleased turns the whole crescent green, flashes
+# spark accents, and plays a short OpenSL ES confirmation tone. Game state,
+# timing, and the original meter remain read-only.
+set(_shotmeter_dobby_v47_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v47.map.txt")
+file(WRITE "${_shotmeter_dobby_v47_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v47_crescent_agent
+    SHARED src/shotmeter_dobby_v47_crescent_perfect_meter.cpp)
+target_link_libraries(shotmeter_dobby_v47_crescent_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+target_compile_features(shotmeter_dobby_v47_crescent_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v47_crescent_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v47_crescent_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v47_agent_map}")
+set_target_properties(shotmeter_dobby_v47_crescent_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v47"
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES)
