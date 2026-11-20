@@ -455,10 +455,9 @@ set_target_properties(shotmeter_dobby_v44_coordinate_agent PROPERTIES
 )
 
 
-# v45 bypasses the getter's deliberate NULL gate during Draw2D, reads the
-# manager's saved perspective view using the ASLR-adjusted module base, and
-# compares it with the GUI parallel view. VCView_Project receives private
-# 0x240-byte copies only; no game-owned view bytes are modified.
+# v45 snapshots the current CPU display-list view, reads the manager's
+# saved view through an ASLR-adjusted address, and compares both with the GUI
+# parallel view. VCView_Project receives private 0x240-byte copies only.
 set(_shotmeter_dobby_v45_agent_map
     "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v45.map.txt")
 file(WRITE "${_shotmeter_dobby_v45_agent_map}"
