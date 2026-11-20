@@ -108,3 +108,6 @@ The first Dobby CI attempt compiled through configure and then failed because th
 The next CI attempt then passed the earlier assembly stage but exposed a source/header mismatch in the pinned Dobby revision: Linux/Android `ProcessRuntime.cc` accesses `RuntimeModule::load_address`, while the shared structure declared only `base`. The current CMake patch changes that structure to an anonymous union exposing both names. This is a compatibility shim in the fetched Dobby source only; it does not touch the user's phone or game files.
 
 The latest workflow run is checking that compatibility patch. A successful compile and artifact verification are still required; no v38 binary has been released for device testing.
+
+
+A subsequent CI pass cleared the earlier `OSMemory` include-cycle and `MemRange::start()` issues after the narrow CMake compatibility edits. It then stopped at Dobby's POSIX code-patching file because the upstream target did not expose its own `source/` include root to that translation unit. The latest CMake change adds this source include path to both Dobby targets. The new workflow run must still confirm whether this gets through the remaining compile and link stages.
