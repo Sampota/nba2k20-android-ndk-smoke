@@ -285,8 +285,9 @@ static void draw_disc(GLint cx, GLint cy, GLint radius,
 }
 
 static float crescent_half_width(float t, float maximum) {
-    const float taper = std::pow(std::max(0.0f, 1.0f - t), 0.78f);
-    const float shoulder = 0.76f + 0.24f * std::sin(3.14159265359f * t);
+    /* Both ends taper to points; the band reaches its full width through the bend. */
+    const float taper = std::pow(std::max(0.0f, std::sin(3.14159265359f * t)), 0.82f);
+    const float shoulder = 0.82f + 0.18f * std::sin(3.14159265359f * t);
     return maximum * taper * shoulder;
 }
 
@@ -297,7 +298,7 @@ static void draw_crescent_pass(GLint center_x, GLint top_y, GLint height,
     for (GLint i = 0; i <= segments; ++i) {
         const float t = static_cast<float>(i) / static_cast<float>(segments);
         const float angle = 3.14159265359f * t;
-        const GLint x = center_x - static_cast<GLint>(std::lround(std::sin(angle) * bend));
+        const GLint x = center_x + static_cast<GLint>(std::lround(std::sin(angle) * bend));
         const GLint y = top_y - static_cast<GLint>(std::lround(t * height));
         const float half_width = crescent_half_width(t, maximum_half_width) +
                                  static_cast<float>(expand);
@@ -320,7 +321,7 @@ static void draw_spark_line(GLint x0, GLint y0, GLint x1, GLint y1,
     }
 }
 
-/* Full-height tapered crescent with a green Excellent tip and a traveling
+/* Point-to-point crescent with a green Excellent tip and a traveling
    white marker. The perfect-release flash recolors the entire inner crescent. */
 static void draw_crescent_meter(GLint anchor_x, GLint anchor_y, GLint viewport_h,
                                 float progress, bool perfect, uint64_t now) {
@@ -348,7 +349,7 @@ static void draw_crescent_meter(GLint anchor_x, GLint anchor_y, GLint viewport_h
     for (GLint i = 0; i <= segments; ++i) {
         const float t = static_cast<float>(i) / static_cast<float>(segments);
         const float angle = 3.14159265359f * t;
-        const GLint x = center_x - static_cast<GLint>(std::lround(std::sin(angle) * bend));
+        const GLint x = center_x + static_cast<GLint>(std::lround(std::sin(angle) * bend));
         const GLint y = top_y - static_cast<GLint>(std::lround(t * height));
         const float inner_half = crescent_half_width(t, half_width) - 1.5f;
         if (inner_half < 0.65f) continue;
@@ -364,7 +365,7 @@ static void draw_crescent_meter(GLint anchor_x, GLint anchor_y, GLint viewport_h
 
     const float marker_t = 1.0f - std::max(0.0f, std::min(1.0f, progress));
     const float marker_angle = 3.14159265359f * marker_t;
-    const GLint marker_x = center_x -
+    const GLint marker_x = center_x +
         static_cast<GLint>(std::lround(std::sin(marker_angle) * bend));
     const GLint marker_y = top_y - static_cast<GLint>(std::lround(marker_t * height));
     draw_disc(marker_x, marker_y, static_cast<GLint>(std::lround(7.0f * scale)),
