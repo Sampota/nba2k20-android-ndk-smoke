@@ -47,6 +47,19 @@ string(REPLACE
     _dobby_arm64_bridge_contents "${_dobby_arm64_bridge_contents}")
 file(WRITE "${_dobby_arm64_bridge}" "${_dobby_arm64_bridge_contents}")
 
+# The pinned Dobby revision names the ELF runtime-module base
+# `load_address` in its Linux/Android implementation but exposes only
+# `base` in the shared RuntimeModule structure. Keep both field spellings
+# as an anonymous union so the Android/Linux and Mach-O backends compile.
+set(_dobby_runtime_module_header
+    "${dobby_source_SOURCE_DIR}/source/PlatformUtil/ProcessRuntime.h")
+file(READ "${_dobby_runtime_module_header}" _dobby_runtime_module_contents)
+string(REPLACE
+    "  void *base;\n"
+    "  union { void *base; void *load_address; };\n"
+    _dobby_runtime_module_contents "${_dobby_runtime_module_contents}")
+file(WRITE "${_dobby_runtime_module_header}" "${_dobby_runtime_module_contents}")
+
 # ShadowHook v2.0.1's upstream CMake enables -Weverything -Werror. NDK 30
 # ships Clang 21, which adds diagnostics not fatal under its older toolchains.
 # Keep upstream warnings visible but non-fatal; our own probe remains -Werror.
