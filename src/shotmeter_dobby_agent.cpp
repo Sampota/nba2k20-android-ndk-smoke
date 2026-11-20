@@ -1,4 +1,5 @@
 #include <android/log.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <jni.h>
 #include <stdint.h>
