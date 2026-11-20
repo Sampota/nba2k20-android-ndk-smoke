@@ -39,7 +39,7 @@ static int g_swap_code = -999;
 static std::atomic<uint32_t> g_frames{0}, g_active_frames{0}, g_draws{0}, g_resets{0};
 static std::atomic<int32_t> g_state{-1}, g_surface_w{0}, g_surface_h{0};
 static std::atomic<int32_t> g_view_w{0}, g_view_h{0}, g_fbo{-1};
-static std::atomic<uint32_t> g_player{0}, g_meter_bits{0}, g_fill_bits{0};
+static std::atomic<uint32_t> g_player{0}, g_meter_bits{0}, g_marker_bits{0};
 
 static volatile int g_bias = 100;
 __attribute__((noinline, optnone)) static int test_target(int x) { return x + g_bias; }
@@ -86,7 +86,7 @@ static void reset_counters(void) {
     g_frames.store(0); g_active_frames.store(0); g_draws.store(0);
     g_state.store(-1); g_surface_w.store(0); g_surface_h.store(0);
     g_view_w.store(0); g_view_h.store(0); g_fbo.store(-1);
-    g_player.store(0); g_meter_bits.store(0); g_fill_bits.store(0);
+    g_player.store(0); g_meter_bits.store(0); g_marker_bits.store(0);
     g_resets.fetch_add(1);
 }
 static void consume_reset(void) {
@@ -110,7 +110,7 @@ static void clear_rect(GLint x, GLint y, GLsizei w, GLsizei h,
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
-/* Draw an independent HUD bar from read-only stock component data. */
+/* Draw an independent HUD meter from the stock timing-position value, read-only. */
 static void draw_meter(EGLDisplay display, EGLSurface surface) {
     volatile uint8_t *c = g_component;
     if (!c) return;
@@ -124,8 +124,9 @@ static void draw_meter(EGLDisplay display, EGLSurface surface) {
 
     /* State 2 is the ordinary jumpshot timing path. Do not display in idle/free-throw states. */
     if (!tracked || state != 2 || !std::isfinite(raw)) return;
-    const float fill = std::max(0.0f, std::min(1.0f, raw * 4.0f));
-    store_float(g_fill_bits, fill);
+    /* Update_Game encodes left-to-right timing position in [0.0, 0.5]. */
+    const float marker = std::max(0.0f, std::min(1.0f, raw * 2.0f));
+    store_float(g_marker_bits, marker);
     g_active_frames.fetch_add(1, std::memory_order_relaxed);
 
     if (eglGetCurrentContext() == EGL_NO_CONTEXT) return;
@@ -157,12 +158,16 @@ static void draw_meter(EGLDisplay display, EGLSurface surface) {
     const GLint y = vp[1] + vp[3] / 12;
     const GLint inner_w = width - 2 * border;
     const GLint inner_h = height - 2 * border;
-    const GLint fill_w = static_cast<GLint>(std::lround(inner_w * fill));
+    const GLint zone_w = std::max(8, inner_w * 10 / 100);
+    const GLint zone_x = x + border + (inner_w - zone_w) / 2;
+    const GLint marker_w = 5;
+    const GLint marker_x = x + border +
+        static_cast<GLint>(std::lround((inner_w - marker_w) * marker));
 
     clear_rect(x, y, width, height, 0.70f, 0.77f, 0.82f);
     clear_rect(x + border, y + border, inner_w, inner_h, 0.025f, 0.04f, 0.05f);
-    if (fill_w > 0)
-        clear_rect(x + border, y + border, fill_w, inner_h, 0.08f, 0.92f, 0.28f);
+    clear_rect(zone_x, y + border, zone_w, inner_h, 0.08f, 0.78f, 0.24f);
+    clear_rect(marker_x, y + border, marker_w, inner_h, 0.96f, 0.98f, 1.0f);
 
     glScissor(old_scissor[0], old_scissor[1], old_scissor[2], old_scissor[3]);
     if (was_scissor == GL_FALSE) glDisable(GL_SCISSOR_TEST);
@@ -204,7 +209,7 @@ static void write_diagnostic(void) {
         "egl_swap_buffers_address=%p\negl_swap_buffers_hook_code=%d\n"
         "frame_callbacks=%u\nactive_meter_frames=%u\noverlay_draw_calls=%u\n"
         "last_component_state=%d\nlast_tracked_player_present=%u\n"
-        "last_meter_value=%.7g\nlast_fill_fraction=%.7g\n"
+        "last_meter_value=%.7g\nlast_meter_position=%.7g\n"
         "last_surface_width=%d\nlast_surface_height=%d\n"
         "last_viewport_width=%d\nlast_viewport_height=%d\nlast_framebuffer_binding=%d\n"
         "component_memory_modified=0\noriginal_meter_resource_modified=0\n"
@@ -214,7 +219,7 @@ static void write_diagnostic(void) {
         g_self_code, g_self_base, g_self_orig, g_self_patch,
         g_game_name, kComponentSymbol, (const void *)g_component,
         g_swap_address, g_swap_code, frames, active, draws,
-        g_state.load(), g_player.load(), load_float(g_meter_bits), load_float(g_fill_bits),
+        g_state.load(), g_player.load(), load_float(g_meter_bits), load_float(g_marker_bits),
         g_surface_w.load(), g_surface_h.load(), g_view_w.load(), g_view_h.load(), g_fbo.load(), status);
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     if (fd < 0) { LOGE("cannot write diagnostic errno=%d", errno); return; }
