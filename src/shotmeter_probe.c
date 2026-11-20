@@ -143,10 +143,12 @@ int shotmeter_probe_install(void) {
     }
 
     if (g_do_draw_stub == NULL) {
+        void *original_address = NULL;
         g_do_draw_stub = shadowhook_hook_sym_name(
             kTargetLibrary, kDoDrawSymbol,
             (void *)shot_indicator_do_draw_proxy,
-            (void **)&g_original_do_draw);
+            &original_address);
+        g_original_do_draw = (shot_indicator_do_draw_fn)original_address;
 
         if (g_do_draw_stub == NULL) {
             const int error = shadowhook_get_errno();
@@ -160,10 +162,12 @@ int shotmeter_probe_install(void) {
     }
 
     if (g_shot_released_stub == NULL) {
+        void *original_address = NULL;
         g_shot_released_stub = shadowhook_hook_sym_name(
             kTargetLibrary, kShotReleasedSymbol,
             (void *)user_shot_released_proxy,
-            (void **)&g_original_shot_released);
+            &original_address);
+        g_original_shot_released = (user_shot_released_fn)original_address;
 
         if (g_shot_released_stub == NULL) {
             const int error = shadowhook_get_errno();
