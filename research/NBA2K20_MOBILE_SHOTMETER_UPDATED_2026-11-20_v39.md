@@ -50,9 +50,9 @@ The agent:
 6. Records callback counts, shot-release timing enum and two float arguments, and material CRC / enabled value.
 7. Refreshes `files/shotmeter.dobby-v39-diagnostic` once per second for up to 180 seconds.
 
-The proxies do not inspect game-object fields and do not write game memory. They do not change the shot timing, material state, rendering, audio, or gameplay. Callback counts in the diagnostic are the proof needed to distinguish successful symbol resolution/registration from actual in-game execution.
+The proxies do not inspect or write game-object fields and do not change shot timing, material state, rendering, audio, or gameplay. Dobby necessarily patches the three target function entry points in the running process's memory so calls can pass through these proxies; this is transient in-memory instrumentation. The original game ELF file on disk is not modified. Callback counts in the diagnostic distinguish successful symbol resolution/registration from actual in-game execution.
 
-The `RTLD_NOLOAD` requirement is deliberate: the agent must not load the protected original game library itself, replace it, rename it, or modify it.
+The `RTLD_NOLOAD` requirement is deliberate: the agent must not load the protected original game library itself, replace it, rename it, or modify the file on disk.
 
 ## Build and device-test state
 
