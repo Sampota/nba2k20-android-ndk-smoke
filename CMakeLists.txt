@@ -453,3 +453,28 @@ set_target_properties(shotmeter_dobby_v44_coordinate_agent PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+
+# v46 combines the validated v45 perspective player-head projection with the
+# v42 independent EGL overlay. The curved meter is drawn beside the live
+# projected head anchor; stock component and timing data remain read-only.
+set(_shotmeter_dobby_v46_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v46.map.txt")
+file(WRITE "${_shotmeter_dobby_v46_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v46_player_anchored_agent
+    SHARED src/shotmeter_dobby_v46_player_anchored_meter.cpp)
+target_link_libraries(shotmeter_dobby_v46_player_anchored_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3})
+target_compile_features(shotmeter_dobby_v46_player_anchored_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v46_player_anchored_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v46_player_anchored_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v46_agent_map}")
+set_target_properties(shotmeter_dobby_v46_player_anchored_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v46"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
