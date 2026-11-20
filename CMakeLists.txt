@@ -374,3 +374,30 @@ set_target_properties(shotmeter_dobby_v41_feedback_agent PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+# v42 draws an independent screen-space second shotmeter on the EGL backbuffer.
+# It reads the stock ShotIndicatorComponent progress field only; it does not
+# modify the component, its material/resource, or the original shot timing.
+find_library(android_egl EGL REQUIRED)
+find_library(android_glesv3 GLESv3 REQUIRED)
+set(_shotmeter_dobby_v42_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v42.map.txt")
+file(WRITE "${_shotmeter_dobby_v42_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v42_second_meter_agent SHARED
+    src/shotmeter_dobby_v42_second_meter.cpp)
+target_link_libraries(shotmeter_dobby_v42_second_meter_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3})
+target_compile_features(shotmeter_dobby_v42_second_meter_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v42_second_meter_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v42_second_meter_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v42_agent_map}")
+set_target_properties(shotmeter_dobby_v42_second_meter_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v42"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
