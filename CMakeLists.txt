@@ -36,6 +36,17 @@ set_target_properties(dobby_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(dobby PRIVATE "${dobby_source_SOURCE_DIR}/source")
 target_include_directories(dobby_static PRIVATE "${dobby_source_SOURCE_DIR}/source")
 
+# This pinned Dobby POSIX file still includes a removed Cpu.h. Its only
+# required ClearCache declaration is already provided by dobby_internal.h.
+set(_dobby_posix_patch_source
+    "${dobby_source_SOURCE_DIR}/source/Backend/UserMode/ExecMemory/code-patch-tool-posix.cc")
+file(READ "${_dobby_posix_patch_source}" _dobby_posix_patch_contents)
+string(REPLACE
+    "#include \\"core/arch/Cpu.h\\"\n"
+    ""
+    _dobby_posix_patch_contents "${_dobby_posix_patch_contents}")
+file(WRITE "${_dobby_posix_patch_source}" "${_dobby_posix_patch_contents}")
+
 # The pinned upstream ARM64 bridge assembly spells its PC-relative symbol
 # relocations using Mach-O @PAGE/@PAGEOFF even in its Android source list.
 # Rewrite only these two operands to their equivalent AArch64 ELF relocations.
