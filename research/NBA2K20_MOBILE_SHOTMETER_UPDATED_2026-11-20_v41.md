@@ -60,3 +60,26 @@ separately owned green visual resource.
 CI has not yet run for v41. Do not install or test until the ARM64 build,
 dependency/export/string checks, and artifact checksum are verified. Never
 attach v41 twice to the same game PID.
+
+
+## v41 build and binary verification — 2026-11-20
+
+GitHub Actions:
+- Run #88: https://github.com/Sampota/nba2k20-android-ndk-smoke/actions/runs/44740074133
+- Run ID: `44740074133`
+- Result: **success**; build, ELF verification, and v41 artifact upload all passed.
+- Artifact ID: `14630098624`
+- Artifact: `shotmeter-dobby-v41-feedback-path-arm64`
+- Extracted binary size: `816072` bytes.
+- Binary SHA-256: `c41b72b0bdce7a1b588266c1d4074e3333d243c00249d99d5b23f9ba0d277f45`.
+- Artifact ZIP SHA-256: `0f5c031b73351ca40d8f07bd2304bdd006455dd120b418eb63bf1db1509a2088`.
+
+Independent post-build checks:
+- ELF64 AArch64 shared object; Android API 21 minimum; NDK r30.
+- LOAD segments are aligned to `0x4000` (16 KB).
+- Dynamic dependencies are only `liblog.so`, `libdl.so`, `libm.so`, and `libc.so`; Dobby is embedded.
+- Exports `Agent_OnAttach` and `Agent_OnUnload`.
+- Contains all four v40 timing symbols and all three stock ShotFeedbackComponent symbols.
+- Contains the v41 diagnostic and reset marker names.
+
+**Deployment status:** binary built and statically verified, but not yet attached to a game process. Runtime ABI/callback stability and on-device reset behavior remain to be validated. It is not a custom visual overlay.
