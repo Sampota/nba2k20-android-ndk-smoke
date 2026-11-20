@@ -4,6 +4,7 @@
 #include <jni.h>
 #include <pthread.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #include "shotmeter_probe.h"
 
@@ -41,24 +42,35 @@ static int ensure_original_library_loaded(void) {
                  error != NULL ? error : "unknown linker error");
             g_original_load_status = -1;
         } else {
+            char activity_error_text[256] = "ok";
+            char jni_error_text[256] = "ok";
+
             dlerror();
             g_original_activity_on_create = (original_activity_on_create_fn)
                 dlsym(g_original_handle, "ANativeActivity_onCreate");
             const char *activity_error = dlerror();
+            const int activity_lookup_failed = activity_error != NULL;
+            if (activity_lookup_failed) {
+                (void)snprintf(activity_error_text, sizeof(activity_error_text),
+                               "%s", activity_error);
+            }
 
             dlerror();
             g_original_jni_on_load = (original_jni_on_load_fn)
                 dlsym(g_original_handle, "JNI_OnLoad");
             const char *jni_error = dlerror();
+            const int jni_lookup_failed = jni_error != NULL;
+            if (jni_lookup_failed) {
+                (void)snprintf(jni_error_text, sizeof(jni_error_text),
+                               "%s", jni_error);
+            }
 
-            if (g_original_activity_on_create == NULL || activity_error != NULL ||
-                g_original_jni_on_load == NULL || jni_error != NULL) {
+            if (g_original_activity_on_create == NULL || activity_lookup_failed ||
+                g_original_jni_on_load == NULL || jni_lookup_failed) {
                 LOGE("Original exports unavailable: ANativeActivity_onCreate=%p (%s), "
                      "JNI_OnLoad=%p (%s)",
-                     (void *)g_original_activity_on_create,
-                     activity_error != NULL ? activity_error : "ok",
-                     (void *)g_original_jni_on_load,
-                     jni_error != NULL ? jni_error : "ok");
+                     (void *)g_original_activity_on_create, activity_error_text,
+                     (void *)g_original_jni_on_load, jni_error_text);
                 g_original_load_status = -1;
             } else {
                 LOGI("Loaded untouched original ELF as %s: handle=%p "
