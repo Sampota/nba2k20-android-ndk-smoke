@@ -114,3 +114,6 @@ A subsequent CI pass cleared the earlier `OSMemory` include-cycle and `MemRange:
 
 
 The next CI run showed that merely adding Dobby's source include directory could not solve the POSIX compile error: the referenced `core/arch/Cpu.h` is absent from the pinned revision. The CMake patch has now been tightened to replace that stale include with the existing `PlatformUnifiedInterface/ExecMemory/ClearCacheTool.h` header, which is already included by Dobby's internal header. This corrected patch is awaiting CI verification.
+
+
+The corrected stale-header patch cleared the POSIX source compile stage. CI then showed the Dobby static archive building successfully, but the unused upstream `libdobby.so` target failed to link because its ARM64 bridge had a non-PIC direct relocation. The current candidate therefore excludes that unused shared target and rewrites the bridge reference as an AArch64 GOT lookup, which is appropriate for the single shared JVMTI agent that will embed Dobby. This final PIC adjustment is not yet proven; the next workflow run must pass the agent link and ELF checks.
