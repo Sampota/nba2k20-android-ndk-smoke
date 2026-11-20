@@ -135,7 +135,7 @@ file(WRITE "${_shotmeter_agent_map}" "${_shotmeter_agent_map_contents}")
 add_library(shotmeter_agent SHARED
     src/shotmeter_agent.c
     src/shotmeter_probe.c
-    ${_shadowhook_embedded_sources}
+    $<TARGET_OBJECTS:shadowhook_embedded>
 )
 target_include_directories(shotmeter_agent PRIVATE
     src
