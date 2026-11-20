@@ -1,5 +1,6 @@
 #include <android/log.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <stdint.h>
@@ -40,6 +41,8 @@ static _Atomic uint32_t g_release_samples = 0;
 static _Atomic uint32_t g_material_samples = 0;
 static _Atomic uint32_t g_last_state = UINT32_MAX;
 static _Atomic int32_t g_last_timing = INT32_MIN;
+static int g_shadowhook_init_error = 0;
+static char g_shadowhook_init_message[128] = "not attempted";
 
 enum {
     SHOTMETER_PROBE_OK = 0,
@@ -178,8 +181,12 @@ int shotmeter_probe_install(void) {
 
     const int init_result = shadowhook_init(SHADOWHOOK_MODE_SHARED, false);
     if (init_result != SHADOWHOOK_ERRNO_OK) {
+        const char *init_message = shadowhook_to_errmsg(init_result);
+        g_shadowhook_init_error = init_result;
+        (void)snprintf(g_shadowhook_init_message, sizeof(g_shadowhook_init_message),
+                       "%s", init_message != NULL ? init_message : "(null)");
         LOGE("shadowhook_init failed: code=%d message=%s",
-             init_result, shadowhook_to_errmsg(init_result));
+             init_result, g_shadowhook_init_message);
         result |= SHOTMETER_PROBE_INIT_FAILED;
         atomic_flag_clear_explicit(&g_install_lock, memory_order_release);
         return result;
@@ -258,6 +265,16 @@ uint32_t shotmeter_probe_get_release_sample_count(void) {
 __attribute__((visibility("default")))
 uint32_t shotmeter_probe_get_material_sample_count(void) {
     return atomic_load_explicit(&g_material_samples, memory_order_relaxed);
+}
+
+__attribute__((visibility("default")))
+int shotmeter_probe_get_init_error_code(void) {
+    return g_shadowhook_init_error;
+}
+
+__attribute__((visibility("default")))
+const char *shotmeter_probe_get_init_error_message(void) {
+    return g_shadowhook_init_message;
 }
 
 __attribute__((visibility("default")))
