@@ -60,6 +60,32 @@ string(REPLACE
     _dobby_runtime_module_contents "${_dobby_runtime_module_contents}")
 file(WRITE "${_dobby_runtime_module_header}" "${_dobby_runtime_module_contents}")
 
+# The same pinned Dobby revision still uses the pre-accessor MemRange field
+# name in its Linux/Android comparator.
+set(_dobby_linux_runtime_source
+    "${dobby_source_SOURCE_DIR}/source/Backend/UserMode/PlatformUtil/Linux/ProcessRuntime.cc")
+file(READ "${_dobby_linux_runtime_source}" _dobby_linux_runtime_contents)
+string(REPLACE
+    "return (a.start < b.start);"
+    "return (a.start() < b.start());"
+    _dobby_linux_runtime_contents "${_dobby_linux_runtime_contents}")
+file(WRITE "${_dobby_linux_runtime_source}" "${_dobby_linux_runtime_contents}")
+
+# Avoid the upstream os_arch_features.h -> platform.h -> common.h include
+# cycle for Android: use the equivalent POSIX mprotect call locally.
+set(_dobby_os_arch_header
+    "${dobby_source_SOURCE_DIR}/common/os_arch_features.h")
+file(READ "${_dobby_os_arch_header}" _dobby_os_arch_contents)
+string(REPLACE
+    "#include <stddef.h>\n"
+    "#include <stddef.h>\n#if defined(ANDROID)\n#include <sys/mman.h>\n#include <unistd.h>\n#endif\n"
+    _dobby_os_arch_contents "${_dobby_os_arch_contents}")
+string(REPLACE
+    "  auto page = (void *)ALIGN_FLOOR(address, OSMemory::PageSize());\n  if (!OSMemory::SetPermission(page, OSMemory::PageSize(), kReadExecute)) {\n    return;\n  }"
+    "  const size_t page_size = (size_t)sysconf(_SC_PAGESIZE);\n  auto page = (void *)ALIGN_FLOOR(address, page_size);\n  (void)size;\n  if (mprotect(page, page_size, PROT_READ | PROT_EXEC) != 0) {\n    return;\n  }"
+    _dobby_os_arch_contents "${_dobby_os_arch_contents}")
+file(WRITE "${_dobby_os_arch_header}" "${_dobby_os_arch_contents}")
+
 # ShadowHook v2.0.1's upstream CMake enables -Weverything -Werror. NDK 30
 # ships Clang 21, which adds diagnostics not fatal under its older toolchains.
 # Keep upstream warnings visible but non-fatal; our own probe remains -Werror.
