@@ -95,3 +95,13 @@ path, Android linker namespace lookup, protected application startup, original
 JNI initialization order, and actual in-game hook execution remain unverified.
 The CI checks only confirm the ELF architecture, required entry-point exports,
 DT_SONAME, and declared shared-library dependencies.
+
+
+## ShadowHook shared-mode chaining correction
+
+The probe uses ShadowHook's shared hook mode. Each proxy calls the next handler
+using `SHADOWHOOK_CALL_PREV` and invokes `SHADOWHOOK_POP_STACK` before every
+return. The earlier implementation called a saved raw original address directly;
+that was corrected because shared mode requires ShadowHook's proxy-chain API and
+per-call stack cleanup. The latest CI build (run #19) compiles and verifies the
+corrected probe and proxy artifacts.
