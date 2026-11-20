@@ -13,6 +13,24 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(shadowhook_source)
 
+# Dobby is the v38 diagnostic hook engine. Pin an immutable commit and build
+# its static target into a single JVMTI agent ELF; no Dobby .so is deployed.
+set(DOBBY_DEBUG OFF CACHE BOOL "" FORCE)
+set(NearBranch ON CACHE BOOL "" FORCE)
+set(Plugin.SymbolResolver OFF CACHE BOOL "" FORCE)
+set(Plugin.ImportTableReplace OFF CACHE BOOL "" FORCE)
+set(Plugin.Android.BionicLinkerUtil OFF CACHE BOOL "" FORCE)
+set(DOBBY_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+set(DOBBY_BUILD_TEST OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    dobby_source
+    GIT_REPOSITORY https://github.com/jmpews/Dobby.git
+    GIT_TAG 5dfc8546954ce3b3198132ab13fddb89ee92cdd7
+    GIT_SHALLOW FALSE
+)
+FetchContent_MakeAvailable(dobby_source)
+set_target_properties(dobby_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # ShadowHook v2.0.1's upstream CMake enables -Weverything -Werror. NDK 30
 # ships Clang 21, which adds diagnostics not fatal under its older toolchains.
 # Keep upstream warnings visible but non-fatal; our own probe remains -Werror.
@@ -169,3 +187,34 @@ set_target_properties(shotmeter_agent PROPERTIES
     C_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+# Isolated v38 Dobby diagnostic agent. It hooks only a local test function
+# to validate ARM64 code patching/trampoline behavior before touching game code.
+set(_shotmeter_dobby_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby.map.txt")
+file(WRITE "${_shotmeter_dobby_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+
+add_library(shotmeter_dobby_agent SHARED src/shotmeter_dobby_agent.cpp)
+target_link_libraries(shotmeter_dobby_agent PRIVATE
+    dobby_static
+    ${android_log}
+    ${android_dl}
+)
+target_compile_features(shotmeter_dobby_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_agent PRIVATE
+    -Wall -Wextra -Werror
+    -fvisibility=hidden
+)
+target_link_options(shotmeter_dobby_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_agent_map}"
+)
+set_target_properties(shotmeter_dobby_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v38"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
+
