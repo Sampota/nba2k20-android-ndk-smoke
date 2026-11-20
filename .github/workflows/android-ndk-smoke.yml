@@ -82,15 +82,17 @@ jobs:
           SMOKE="build-android/libshotmeter_ndk_smoke.so"
           PROBE="build-android/libshotmeter_probe.so"
           PROXY="build-android/libnba2k20_clean_opt.so"
+          AGENT="build-android/libshotmeter.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
           test -s "$PROBE"
           test -s "$PROXY"
+          test -s "$AGENT"
           test -n "$SHADOWHOOK"
           test -s "$SHADOWHOOK"
 
-          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$SHADOWHOOK"; do
+          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$SHADOWHOOK"; do
             echo "=== $LIB ==="
             file "$LIB"
             readelf -h "$LIB" | grep -E 'Class:|Machine:'
@@ -101,6 +103,11 @@ jobs:
           readelf -d "$PROBE" | grep 'NEEDED' | grep -F 'libshadowhook.so'
           readelf -d "$PROXY" | grep 'NEEDED' | grep -F 'libshotmeter_probe.so'
           readelf -d "$PROXY" | grep 'SONAME' | grep -F 'libnba2k20_clean_opt.so'
+          readelf -d "$AGENT" | grep 'NEEDED' | grep -F 'liblog.so'
+          if readelf -d "$AGENT" | grep -F 'libshadowhook.so'; then
+            echo "Single-file agent unexpectedly depends on libshadowhook.so" >&2
+            exit 1
+          fi
           readelf --dyn-syms --wide "$SMOKE" | grep -F 'shotmeter_ndk_smoke_probe'
           readelf --dyn-syms --wide "$PROXY" | grep -F 'ANativeActivity_onCreate'
           readelf --dyn-syms --wide "$PROXY" | grep -F 'JNI_OnLoad'
@@ -109,11 +116,14 @@ jobs:
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_release_sample_count'
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_material_sample_count'
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_version'
+          readelf --dyn-syms --wide "$AGENT" | grep -F 'Agent_OnAttach'
+          readelf --dyn-syms --wide "$AGENT" | grep -F 'Agent_OnUnload'
 
           mkdir -p build-android/artifacts/arm64-v8a
           cp "$SMOKE" build-android/artifacts/arm64-v8a/
           cp "$PROBE" build-android/artifacts/arm64-v8a/
           cp "$PROXY" build-android/artifacts/arm64-v8a/
+          cp "$AGENT" build-android/artifacts/arm64-v8a/
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Upload Android ARM64 smoke-test artifact
@@ -140,4 +150,11 @@ jobs:
             build-android/artifacts/arm64-v8a/libnba2k20_clean_opt.so
             build-android/artifacts/arm64-v8a/libshotmeter_probe.so
             build-android/artifacts/arm64-v8a/libshadowhook.so
+          if-no-files-found: error
+
+      - name: Upload single-file non-root JVMTI agent
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-nonroot-jvmti-agent-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter.so
           if-no-files-found: error
