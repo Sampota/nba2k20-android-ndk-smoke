@@ -1,4 +1,4 @@
-name: Android NDK ARM64 smoke test
+name: Android NDK ARM64 smoke test and read-only capture probe
 
 on:
   push:
@@ -17,6 +17,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Set up Python for CMake
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -42,42 +47,79 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "Resolved Android SDK: $SDK_ROOT"
 
-      - name: Install Android NDK and CMake
-        run: sdkmanager --install "ndk;30.0.16248370" "cmake;3.22.1"
+      - name: Install Android NDK
+        run: sdkmanager --install "ndk;30.0.16248370"
+
+      - name: Install pinned CMake
+        shell: bash
+        run: |
+          python -m pip install --user --disable-pip-version-check cmake==4.0.2
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/cmake" --version
+          "$HOME/.local/bin/cmake" --version | grep -F "4.0.2"
 
       - name: Verify installed toolchain
         shell: bash
         run: |
           test -f "$ANDROID_SDK_ROOT/ndk/30.0.16248370/build/cmake/android.toolchain.cmake"
-          test -x "$ANDROID_SDK_ROOT/cmake/3.22.1/bin/cmake"
-          "$ANDROID_SDK_ROOT/cmake/3.22.1/bin/cmake" --version
-          sdkmanager --list_installed | grep -E 'ndk;30.0.16248370|cmake;3.22.1'
+          sdkmanager --list_installed | grep -F 'ndk;30.0.16248370'
+          cmake --version
 
       - name: Configure ARM64 Android build
         run: |
-          "$ANDROID_SDK_ROOT/cmake/3.22.1/bin/cmake" -S . -B build-android \
+          cmake -S . -B build-android \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_SDK_ROOT/ndk/30.0.16248370/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=android-21 \
             -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build shared library
-        run: |
-          "$ANDROID_SDK_ROOT/cmake/3.22.1/bin/cmake" --build build-android --config Release --parallel 2
+      - name: Build smoke library and read-only capture probe
+        run: cmake --build build-android --config Release --parallel 2
 
-      - name: Verify ARM64 ELF and Android log dependency
+      - name: Verify ARM64 ELF files and probe exports
         shell: bash
         run: |
-          LIB="build-android/libshotmeter_ndk_smoke.so"
-          file "$LIB"
-          readelf -h "$LIB" | grep -E 'Class:|Machine:'
-          readelf -h "$LIB" | grep -q 'Machine:.*AArch64'
-          readelf -d "$LIB" | grep 'NEEDED' | grep -F 'liblog.so'
-          readelf --dyn-syms --wide "$LIB" | grep -F 'shotmeter_ndk_smoke_probe'
+          SMOKE="build-android/libshotmeter_ndk_smoke.so"
+          PROBE="build-android/libshotmeter_probe.so"
+          SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
-      - name: Upload ARM64 smoke-test artifact
+          test -s "$SMOKE"
+          test -s "$PROBE"
+          test -n "$SHADOWHOOK"
+          test -s "$SHADOWHOOK"
+
+          for LIB in "$SMOKE" "$PROBE" "$SHADOWHOOK"; do
+            echo "=== $LIB ==="
+            file "$LIB"
+            readelf -h "$LIB" | grep -E 'Class:|Machine:'
+            readelf -h "$LIB" | grep -q 'Machine:.*AArch64'
+          done
+
+          readelf -d "$SMOKE" | grep 'NEEDED' | grep -F 'liblog.so'
+          readelf -d "$PROBE" | grep 'NEEDED' | grep -F 'libshadowhook.so'
+          readelf --dyn-syms --wide "$SMOKE" | grep -F 'shotmeter_ndk_smoke_probe'
+          readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_install'
+          readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_draw_sample_count'
+          readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_release_sample_count'
+          readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_version'
+
+          mkdir -p build-android/artifacts/arm64-v8a
+          cp "$SMOKE" build-android/artifacts/arm64-v8a/
+          cp "$PROBE" build-android/artifacts/arm64-v8a/
+          cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
+
+      - name: Upload Android ARM64 smoke-test artifact
         uses: actions/upload-artifact@v4
         with:
           name: shotmeter-android-arm64-ndk-smoke
-          path: build-android/libshotmeter_ndk_smoke.so
+          path: build-android/artifacts/arm64-v8a/libshotmeter_ndk_smoke.so
+          if-no-files-found: error
+
+      - name: Upload read-only capture probe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-readonly-capture-arm64
+          path: |
+            build-android/artifacts/arm64-v8a/libshotmeter_probe.so
+            build-android/artifacts/arm64-v8a/libshadowhook.so
           if-no-files-found: error
