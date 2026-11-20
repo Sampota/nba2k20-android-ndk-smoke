@@ -26,8 +26,6 @@ static const char kShotReleasedSymbol[] =
 typedef void (*shot_indicator_do_draw_fn)(void *component, void *actor);
 typedef void (*user_shot_released_fn)(void *actor, int32_t timing, float arg0, float arg1);
 
-static shot_indicator_do_draw_fn g_original_do_draw = NULL;
-static user_shot_released_fn g_original_shot_released = NULL;
 static void *g_do_draw_stub = NULL;
 static void *g_shot_released_stub = NULL;
 
@@ -63,11 +61,12 @@ static float read_f32(const void *base, size_t offset) {
 }
 
 static void shot_indicator_do_draw_proxy(void *component, void *actor) {
-    if (g_original_do_draw != NULL) {
-        g_original_do_draw(component, actor);
-    }
+    /* Shared mode requires calling the next proxy/original through this API. */
+    SHADOWHOOK_CALL_PREV(shot_indicator_do_draw_proxy, shot_indicator_do_draw_fn,
+                         component, actor);
 
     if (component == NULL) {
+        SHADOWHOOK_POP_STACK();
         return;
     }
 
@@ -104,12 +103,14 @@ static void shot_indicator_do_draw_proxy(void *component, void *actor) {
              live_value, visual_progress, release_error,
              (isfinite(live_value) && isfinite(visual_progress) && isfinite(release_error)) ? 1 : 0);
     }
+
+    /* Required even when this proxy did no work, to clear ShadowHook's chain state. */
+    SHADOWHOOK_POP_STACK();
 }
 
 static void user_shot_released_proxy(void *actor, int32_t timing, float arg0, float arg1) {
-    if (g_original_shot_released != NULL) {
-        g_original_shot_released(actor, timing, arg0, arg1);
-    }
+    SHADOWHOOK_CALL_PREV(user_shot_released_proxy, user_shot_released_fn,
+                         actor, timing, arg0, arg1);
 
     const uint32_t sample = atomic_fetch_add_explicit(
         &g_release_samples, 1, memory_order_relaxed) + 1;
@@ -119,6 +120,8 @@ static void user_shot_released_proxy(void *actor, int32_t timing, float arg0, fl
         LOGI("release sample=%u actor=%p timing_enum=%d arg0=%.5f arg1=%.5f",
              sample, actor, timing, arg0, arg1);
     }
+
+    SHADOWHOOK_POP_STACK();
 }
 
 /*
@@ -143,12 +146,10 @@ int shotmeter_probe_install(void) {
     }
 
     if (g_do_draw_stub == NULL) {
-        void *original_address = NULL;
         g_do_draw_stub = shadowhook_hook_sym_name(
             kTargetLibrary, kDoDrawSymbol,
             (void *)shot_indicator_do_draw_proxy,
-            &original_address);
-        g_original_do_draw = (shot_indicator_do_draw_fn)original_address;
+            NULL);
 
         if (g_do_draw_stub == NULL) {
             const int error = shadowhook_get_errno();
@@ -156,18 +157,16 @@ int shotmeter_probe_install(void) {
                  error, shadowhook_to_errmsg(error));
             result |= SHOTMETER_PROBE_DRAW_HOOK_FAILED;
         } else {
-            LOGI("DoDraw hook registered: stub=%p original=%p errno=%d",
-                 g_do_draw_stub, (void *)g_original_do_draw, shadowhook_get_errno());
+            LOGI("DoDraw hook registered: stub=%p errno=%d",
+                 g_do_draw_stub, shadowhook_get_errno());
         }
     }
 
     if (g_shot_released_stub == NULL) {
-        void *original_address = NULL;
         g_shot_released_stub = shadowhook_hook_sym_name(
             kTargetLibrary, kShotReleasedSymbol,
             (void *)user_shot_released_proxy,
-            &original_address);
-        g_original_shot_released = (user_shot_released_fn)original_address;
+            NULL);
 
         if (g_shot_released_stub == NULL) {
             const int error = shadowhook_get_errno();
@@ -175,9 +174,8 @@ int shotmeter_probe_install(void) {
                  error, shadowhook_to_errmsg(error));
             result |= SHOTMETER_PROBE_RELEASE_HOOK_FAILED;
         } else {
-            LOGI("EVT_UserShotReleased hook registered: stub=%p original=%p errno=%d",
-                 g_shot_released_stub, (void *)g_original_shot_released,
-                 shadowhook_get_errno());
+            LOGI("EVT_UserShotReleased hook registered: stub=%p errno=%d",
+                 g_shot_released_stub, shadowhook_get_errno());
         }
     }
 
