@@ -107,6 +107,7 @@ jobs:
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_install'
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_draw_sample_count'
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_release_sample_count'
+          readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_material_sample_count'
           readelf --dyn-syms --wide "$PROBE" | grep -F 'shotmeter_probe_get_version'
 
           mkdir -p build-android/artifacts/arm64-v8a
