@@ -2,7 +2,7 @@ name: Android NDK ARM64 smoke test and read-only capture probe
 
 on:
   push:
-    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor ]
+    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v45-saved-view-projection-diagnostic ]
   workflow_dispatch:
 
 jobs:
@@ -91,6 +91,7 @@ jobs:
           DOBBY_AGENT_V42="build-android/libshotmeter-v42.so"
           DOBBY_AGENT_V43="build-android/libshotmeter-v43.so"
           DOBBY_AGENT_V44="build-android/libshotmeter-v44.so"
+          DOBBY_AGENT_V45="build-android/libshotmeter-v45.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
@@ -104,10 +105,11 @@ jobs:
           test -s "$DOBBY_AGENT_V42"
           test -s "$DOBBY_AGENT_V43"
           test -s "$DOBBY_AGENT_V44"
+          test -s "$DOBBY_AGENT_V45"
           test -n "$SHADOWHOOK"
           test -s "$SHADOWHOOK"
 
-          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$SHADOWHOOK"; do
+          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V45" "$SHADOWHOOK"; do
             echo "=== $LIB ==="
             file "$LIB"
             readelf -h "$LIB" | grep -E 'Class:|Machine:'
@@ -123,7 +125,7 @@ jobs:
             echo "Single-file ShadowHook agent unexpectedly depends on libshadowhook.so" >&2
             exit 1
           fi
-          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
+          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V45" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
             echo "Dobby diagnostic agent unexpectedly has a separate hook-engine or shared C++ dependency" >&2
             exit 1
           fi
@@ -151,6 +153,8 @@ jobs:
           readelf --dyn-syms --wide "$DOBBY_AGENT_V43" | grep -F 'Agent_OnUnload'
           readelf --dyn-syms --wide "$DOBBY_AGENT_V44" | grep -F 'Agent_OnAttach'
           readelf --dyn-syms --wide "$DOBBY_AGENT_V44" | grep -F 'Agent_OnUnload'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V45" | grep -F 'Agent_OnAttach'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V45" | grep -F 'Agent_OnUnload'
           strings "$DOBBY_AGENT" | grep -F 'shotmeter.dobby-diagnostic'
           strings "$DOBBY_AGENT" | grep -F 'Dobby'
           strings "$DOBBY_AGENT_V39" | grep -F 'shotmeter.dobby-v39-diagnostic'
@@ -188,6 +192,10 @@ jobs:
           strings "$DOBBY_AGENT_V44" | grep -F '_Z32PlayerIconManager3D_GetSavedViewv'
           strings "$DOBBY_AGENT_V44" | grep -F '_Z14VCView_ProjectPK6VCVIEWPKDv4_fPS2_'
           strings "$DOBBY_AGENT_V44" | grep -F 'Dobby'
+          strings "$DOBBY_AGENT_V45" | grep -F 'shotmeter.dobby-v45-saved-view-diagnostic'
+          strings "$DOBBY_AGENT_V45" | grep -F 'manager_saved_view_address'
+          strings "$DOBBY_AGENT_V45" | grep -F 'projection_input_view_copied=1'
+          strings "$DOBBY_AGENT_V45" | grep -F 'Dobby'
           strings "$AGENT" | grep -F 'shotmeter.library-loaded'
           strings "$AGENT" | grep -F 'shotmeter.agent-attached'
           strings "$AGENT" | grep -F 'shotmeter.probe-result'
@@ -205,6 +213,7 @@ jobs:
           cp "$DOBBY_AGENT_V42" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V43" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V44" build-android/artifacts/arm64-v8a/
+          cp "$DOBBY_AGENT_V45" build-android/artifacts/arm64-v8a/
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Upload Android ARM64 smoke-test artifact
@@ -287,4 +296,11 @@ jobs:
         with:
           name: shotmeter-dobby-v44-idempotent-player-anchor-arm64
           path: build-android/artifacts/arm64-v8a/libshotmeter-v44.so
+          if-no-files-found: error
+
+      - name: Upload single-file Dobby v45 saved-view projection diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-dobby-v45-saved-view-projection-diagnostic-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter-v45.so
           if-no-files-found: error
