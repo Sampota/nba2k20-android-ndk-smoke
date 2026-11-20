@@ -13,6 +13,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(shadowhook_source)
 
+# ShadowHook v2.0.1's upstream CMake enables -Weverything -Werror. NDK 30
+# ships Clang 21, which adds diagnostics not fatal under its older toolchains.
+# Keep upstream warnings visible but non-fatal; our own probe remains -Werror.
+target_compile_options(shadowhook PRIVATE -Wno-error)
+
 find_library(android_log log REQUIRED)
 
 # Keep the original toolchain smoke target as a separate, harmless check.
