@@ -110,7 +110,7 @@ corrected probe and proxy artifacts.
 ## Current Android 15 investigation
 
 The latest engineering handoff is
-[`research/NBA2K20_MOBILE_SHOTMETER_UPDATED_2026-11-20_v38.md`](research/NBA2K20_MOBILE_SHOTMETER_UPDATED_2026-11-20_v38.md).
+[`research/NBA2K20_MOBILE_SHOTMETER_UPDATED_2026-11-20_v39.md`](research/NBA2K20_MOBILE_SHOTMETER_UPDATED_2026-11-20_v39.md).
 
 v37 attached successfully but ShadowHook initialization returned error 12
 (`Init linker mod failed`) on the Android 15/API 35 target. Source inspection
@@ -121,3 +121,18 @@ a Dobby-based single-file diagnostic candidate. Its initial test hooks only a
 local function inside the agent; it does not yet hook NBA 2K20 or implement
 GREEN GIANT. The v38 artifact must pass CI and an on-device self-hook test
 before any game hook work resumes.
+
+
+## Dobby v38 runtime validation and v39 read-only hooks
+
+The v38 Dobby self-hook has now passed on the user's non-rooted Android 15
+phone: the original trampoline returned 105 and the replacement returned 112.
+This validates Dobby's basic runtime code-patching path in the attached process,
+not any NBA 2K20 gameplay hook.
+
+A separate v39 candidate now repeats that self-test and attempts three
+observation-only hooks against the already-loaded game ELF. It uses
+`RTLD_NOLOAD` so it will not load, replace, rename, or modify the original
+game library. It records callback counts and event arguments without changing
+gameplay state, timing, audio, or rendering. v39 must pass CI and then be
+verified on-device before it is considered usable.
