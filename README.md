@@ -134,5 +134,7 @@ A separate v39 candidate now repeats that self-test and attempts three
 observation-only hooks against the already-loaded game ELF. It uses
 `RTLD_NOLOAD` so it will not load, replace, rename, or modify the original
 game library. It records callback counts and event arguments without changing
-gameplay state, timing, audio, or rendering. v39 must pass CI and then be
-verified on-device before it is considered usable.
+game-object state, timing, audio, or rendering. Dobby does patch the target
+function entry points in the running process's memory so calls pass through
+the observers; the original game ELF file on disk remains untouched. v39 must
+pass CI and then be verified on-device before it is considered usable.
