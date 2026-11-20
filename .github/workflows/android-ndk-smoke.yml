@@ -2,7 +2,7 @@ name: Android NDK ARM64 smoke test and read-only capture probe
 
 on:
   push:
-    branches: [ main, v41-feedback-gate-reset ]
+    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter ]
   workflow_dispatch:
 
 jobs:
@@ -88,6 +88,7 @@ jobs:
           DOBBY_AGENT_V39="build-android/libshotmeter-v39.so"
           DOBBY_AGENT_V40="build-android/libshotmeter-v40.so"
           DOBBY_AGENT_V41="build-android/libshotmeter-v41.so"
+          DOBBY_AGENT_V42="build-android/libshotmeter-v42.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
@@ -98,10 +99,11 @@ jobs:
           test -s "$DOBBY_AGENT_V39"
           test -s "$DOBBY_AGENT_V40"
           test -s "$DOBBY_AGENT_V41"
+          test -s "$DOBBY_AGENT_V42"
           test -n "$SHADOWHOOK"
           test -s "$SHADOWHOOK"
 
-          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$SHADOWHOOK"; do
+          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$SHADOWHOOK"; do
             echo "=== $LIB ==="
             file "$LIB"
             readelf -h "$LIB" | grep -E 'Class:|Machine:'
@@ -139,6 +141,8 @@ jobs:
           readelf --dyn-syms --wide "$DOBBY_AGENT_V40" | grep -F 'Agent_OnUnload'
           readelf --dyn-syms --wide "$DOBBY_AGENT_V41" | grep -F 'Agent_OnAttach'
           readelf --dyn-syms --wide "$DOBBY_AGENT_V41" | grep -F 'Agent_OnUnload'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V42" | grep -F 'Agent_OnAttach'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V42" | grep -F 'Agent_OnUnload'
           strings "$DOBBY_AGENT" | grep -F 'shotmeter.dobby-diagnostic'
           strings "$DOBBY_AGENT" | grep -F 'Dobby'
           strings "$DOBBY_AGENT_V39" | grep -F 'shotmeter.dobby-v39-diagnostic'
@@ -158,6 +162,11 @@ jobs:
           strings "$DOBBY_AGENT_V41" | grep -F '_ZN21ShotFeedbackComponent4DrawEv'
           strings "$DOBBY_AGENT_V41" | grep -F '_ZN21ShotFeedbackComponent6DoDrawEi'
           strings "$DOBBY_AGENT_V41" | grep -F 'Dobby'
+          strings "$DOBBY_AGENT_V42" | grep -F 'shotmeter.dobby-v42-second-meter-diagnostic'
+          strings "$DOBBY_AGENT_V42" | grep -F 'shotmeter.dobby-v42-reset'
+          strings "$DOBBY_AGENT_V42" | grep -F 'g_ShotIndicatorComponent'
+          strings "$DOBBY_AGENT_V42" | grep -F 'eglSwapBuffers'
+          strings "$DOBBY_AGENT_V42" | grep -F 'Dobby'
           strings "$AGENT" | grep -F 'shotmeter.library-loaded'
           strings "$AGENT" | grep -F 'shotmeter.agent-attached'
           strings "$AGENT" | grep -F 'shotmeter.probe-result'
@@ -172,6 +181,7 @@ jobs:
           cp "$DOBBY_AGENT_V39" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V40" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V41" build-android/artifacts/arm64-v8a/
+          cp "$DOBBY_AGENT_V42" build-android/artifacts/arm64-v8a/
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Upload Android ARM64 smoke-test artifact
@@ -233,4 +243,11 @@ jobs:
         with:
           name: shotmeter-dobby-v41-feedback-path-arm64
           path: build-android/artifacts/arm64-v8a/libshotmeter-v41.so
+          if-no-files-found: error
+
+      - name: Upload single-file Dobby v42 second shotmeter
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-dobby-v42-second-shotmeter-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter-v42.so
           if-no-files-found: error
