@@ -42,8 +42,8 @@ set(_dobby_posix_patch_source
     "${dobby_source_SOURCE_DIR}/source/Backend/UserMode/ExecMemory/code-patch-tool-posix.cc")
 file(READ "${_dobby_posix_patch_source}" _dobby_posix_patch_contents)
 string(REPLACE
-    "#include \\"core/arch/Cpu.h\\"\n"
-    ""
+    "core/arch/Cpu.h"
+    "PlatformUnifiedInterface/ExecMemory/ClearCacheTool.h"
     _dobby_posix_patch_contents "${_dobby_posix_patch_contents}")
 file(WRITE "${_dobby_posix_patch_source}" "${_dobby_posix_patch_contents}")
 
