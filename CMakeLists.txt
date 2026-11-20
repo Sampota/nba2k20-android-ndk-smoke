@@ -427,3 +427,29 @@ set_target_properties(shotmeter_dobby_v43_coordinate_agent PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+
+# v44 keeps the v43 read-only player-anchor diagnostic and makes Agent_OnAttach
+# idempotent. A second attach call in the same loaded ELF is counted and ignored,
+# so it cannot re-run the Dobby self-test or overwrite a successful hook state.
+set(_shotmeter_dobby_v44_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v44.map.txt")
+file(WRITE "${_shotmeter_dobby_v44_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v44_coordinate_agent
+    SHARED src/shotmeter_dobby_v44_coordinate_diagnostic.cpp)
+target_link_libraries(shotmeter_dobby_v44_coordinate_agent PRIVATE
+    dobby_static ${android_log} ${android_dl})
+target_compile_features(shotmeter_dobby_v44_coordinate_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v44_coordinate_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v44_coordinate_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v44_agent_map}")
+set_target_properties(shotmeter_dobby_v44_coordinate_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v44"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
