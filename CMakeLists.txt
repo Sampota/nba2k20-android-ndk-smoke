@@ -352,3 +352,25 @@ set_target_properties(shotmeter_dobby_v40_timing_agent PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+# v41 adds read-only observation of the native stock feedback visibility/draw path
+# and a reset marker handled by the long-lived diagnostic reporter.
+set(_shotmeter_dobby_v41_feedback_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v41-feedback.map.txt")
+file(WRITE "${_shotmeter_dobby_v41_feedback_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v41_feedback_agent SHARED
+    src/shotmeter_dobby_v41_feedback_agent.cpp)
+target_link_libraries(shotmeter_dobby_v41_feedback_agent PRIVATE dobby_static ${android_log} ${android_dl})
+target_compile_features(shotmeter_dobby_v41_feedback_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v41_feedback_agent PRIVATE -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v41_feedback_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v41_feedback_agent_map}")
+set_target_properties(shotmeter_dobby_v41_feedback_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v41"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
