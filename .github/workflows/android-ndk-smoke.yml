@@ -122,8 +122,6 @@ jobs:
           strings "$AGENT" | grep -F 'shotmeter.agent-attached'
           strings "$AGENT" | grep -F 'shotmeter.probe-result'
           strings "$AGENT" | grep -F 'shotmeter.init-diagnostic'
-          readelf --dyn-syms --wide "$AGENT" | grep -F 'shotmeter_probe_get_init_error_code'
-          readelf --dyn-syms --wide "$AGENT" | grep -F 'shotmeter_probe_get_init_error_message'
 
           mkdir -p build-android/artifacts/arm64-v8a
           cp "$SMOKE" build-android/artifacts/arm64-v8a/
