@@ -85,6 +85,7 @@ jobs:
           PROXY="build-android/libnba2k20_clean_opt.so"
           AGENT="build-android/libshotmeter.so"
           DOBBY_AGENT="build-android/libshotmeter-v38.so"
+          DOBBY_AGENT_V39="build-android/libshotmeter-v39.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
@@ -92,10 +93,11 @@ jobs:
           test -s "$PROXY"
           test -s "$AGENT"
           test -s "$DOBBY_AGENT"
+          test -s "$DOBBY_AGENT_V39"
           test -n "$SHADOWHOOK"
           test -s "$SHADOWHOOK"
 
-          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$SHADOWHOOK"; do
+          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$SHADOWHOOK"; do
             echo "=== $LIB ==="
             file "$LIB"
             readelf -h "$LIB" | grep -E 'Class:|Machine:'
@@ -111,7 +113,7 @@ jobs:
             echo "Single-file ShadowHook agent unexpectedly depends on libshadowhook.so" >&2
             exit 1
           fi
-          if readelf -d "$DOBBY_AGENT" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
+          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
             echo "Dobby diagnostic agent unexpectedly has a separate hook-engine or shared C++ dependency" >&2
             exit 1
           fi
@@ -127,8 +129,15 @@ jobs:
           readelf --dyn-syms --wide "$AGENT" | grep -F 'Agent_OnUnload'
           readelf --dyn-syms --wide "$DOBBY_AGENT" | grep -F 'Agent_OnAttach'
           readelf --dyn-syms --wide "$DOBBY_AGENT" | grep -F 'Agent_OnUnload'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V39" | grep -F 'Agent_OnAttach'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V39" | grep -F 'Agent_OnUnload'
           strings "$DOBBY_AGENT" | grep -F 'shotmeter.dobby-diagnostic'
           strings "$DOBBY_AGENT" | grep -F 'Dobby'
+          strings "$DOBBY_AGENT_V39" | grep -F 'shotmeter.dobby-v39-diagnostic'
+          strings "$DOBBY_AGENT_V39" | grep -F '_ZN22ShotIndicatorComponent6DoDrawEP12AI_NBA_ACTOR'
+          strings "$DOBBY_AGENT_V39" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
+          strings "$DOBBY_AGENT_V39" | grep -F '_ZNK22ShotIndicatorComponent18SetMaterialEnabledE10string_crc5_bool'
+          strings "$DOBBY_AGENT_V39" | grep -F 'Dobby'
           strings "$AGENT" | grep -F 'shotmeter.library-loaded'
           strings "$AGENT" | grep -F 'shotmeter.agent-attached'
           strings "$AGENT" | grep -F 'shotmeter.probe-result'
@@ -140,6 +149,7 @@ jobs:
           cp "$PROXY" build-android/artifacts/arm64-v8a/
           cp "$AGENT" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT" build-android/artifacts/arm64-v8a/
+          cp "$DOBBY_AGENT_V39" build-android/artifacts/arm64-v8a/
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Upload Android ARM64 smoke-test artifact
@@ -180,4 +190,11 @@ jobs:
         with:
           name: shotmeter-dobby-v38-diagnostic-arm64
           path: build-android/artifacts/arm64-v8a/libshotmeter-v38.so
+          if-no-files-found: error
+
+      - name: Upload single-file Dobby v39 read-only game-hook agent
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-dobby-v39-readonly-gamehooks-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter-v39.so
           if-no-files-found: error
