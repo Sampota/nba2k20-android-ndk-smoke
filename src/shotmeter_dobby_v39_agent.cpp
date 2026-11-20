@@ -46,6 +46,9 @@ static void *g_shot_released_address = nullptr;
 static void *g_set_material_enabled_address = nullptr;
 
 static int g_self_test_code = -999;
+static int g_self_test_baseline = -999;
+static int g_self_test_original = -999;
+static int g_self_test_patched = -999;
 static int g_do_draw_hook_code = -999;
 static int g_shot_released_hook_code = -999;
 static int g_set_material_enabled_hook_code = -999;
@@ -221,6 +224,10 @@ static void write_diagnostic(void) {
         "engine_commit=5dfc8546954ce3b3198132ab13fddb89ee92cdd7\n"
         "self_test_status=%s\n"
         "self_test_hook_code=%d\n"
+        "self_test_baseline=%d\n"
+        "self_test_original=%d\n"
+        "self_test_patched=%d\n"
+        "self_test_expected_patched=112\n"
         "target_library=%s\n"
         "target_library_handle=%p\n"
         "do_draw_address=%p\n"
@@ -242,6 +249,7 @@ static void write_diagnostic(void) {
         "status=%s\n",
         g_self_test_code == 0 ? "PASS" : "FAIL",
         g_self_test_code,
+        g_self_test_baseline, g_self_test_original, g_self_test_patched,
         g_game_library_name, g_game_library_handle,
         g_do_draw_address, g_do_draw_hook_code,
         g_shot_released_address, g_shot_released_hook_code,
@@ -298,6 +306,9 @@ Agent_OnAttach(JavaVM *vm, char *options, void *reserved) {
     const int original_result =
         g_original_test_target != nullptr ? g_original_test_target(5) : -1;
     const int patched_result = shotmeter_dobby_invoke_target(5);
+    g_self_test_baseline = baseline;
+    g_self_test_original = original_result;
+    g_self_test_patched = patched_result;
     const bool self_test_passed =
         baseline == 105 && g_self_test_code == 0 &&
         original_result == 105 && patched_result == 112;
