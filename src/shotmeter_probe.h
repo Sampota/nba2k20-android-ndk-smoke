@@ -11,6 +11,8 @@ int shotmeter_probe_install(void);
 uint32_t shotmeter_probe_get_draw_sample_count(void);
 uint32_t shotmeter_probe_get_release_sample_count(void);
 uint32_t shotmeter_probe_get_material_sample_count(void);
+int shotmeter_probe_get_init_error_code(void);
+const char *shotmeter_probe_get_init_error_message(void);
 const char *shotmeter_probe_get_version(void);
 
 #ifdef __cplusplus
