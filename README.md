@@ -105,3 +105,19 @@ return. The earlier implementation called a saved raw original address directly;
 that was corrected because shared mode requires ShadowHook's proxy-chain API and
 per-call stack cleanup. The latest CI build (run #19) compiles and verifies the
 corrected probe and proxy artifacts.
+
+
+## Current Android 15 investigation
+
+The latest engineering handoff is
+[`research/NBA2K20_MOBILE_SHOTMETER_UPDATED_2026-11-20_v38.md`](research/NBA2K20_MOBILE_SHOTMETER_UPDATED_2026-11-20_v38.md).
+
+v37 attached successfully but ShadowHook initialization returned error 12
+(`Init linker mod failed`) on the Android 15/API 35 target. Source inspection
+also found that ShadowHook v2.0.1 expects a separately loaded
+`libshadowhook_nothing.so`, which the prior single-ELF embedding omitted.
+Because the final requirement remains one delivered custom library, v38 adds
+a Dobby-based single-file diagnostic candidate. Its initial test hooks only a
+local function inside the agent; it does not yet hook NBA 2K20 or implement
+GREEN GIANT. The v38 artifact must pass CI and an on-device self-hook test
+before any game hook work resumes.
