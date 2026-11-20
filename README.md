@@ -138,3 +138,42 @@ game-object state, timing, audio, or rendering. Dobby does patch the target
 function entry points in the running process's memory so calls pass through
 the observers; the original game ELF file on disk remains untouched. v39 must
 pass CI and then be verified on-device before it is considered usable.
+
+
+## v40 dynamic timing observer
+
+The latest engineering handoff is
+[`research/NBA2K20_MOBILE_SHOTMETER_UPDATED_2026-11-20_v40.md`](research/NBA2K20_MOBILE_SHOTMETER_UPDATED_2026-11-20_v40.md).
+
+Static analysis of the preserved original ARM64 game ELF established that the
+standard jumpshot release class is computed by `HUR_GetShotReleaseTiming`.
+The stock standard-jumpshot feedback visibility predicate explicitly accepts
+class 3 after its player/controller and jumpshot eligibility checks. The
+classifier uses a runtime curve selector at `GameData_Items + 0x18`, four
+runtime-initialized tuning curves, and an effective-rating multiplier:
+
+`clamp((R - 0.4) / 0.49999997 + 0.5, 0.5, 1.5)`.
+
+The actual active thresholds are not fixed constants recoverable from the
+uninitialized BSS arrays in the ELF. The previously discussed fixed
+`±0.15 ... ±0.09` table is not verified and must not be used as the actual
+game threshold. These are normalized timing-error values, not milliseconds.
+
+The new single-file ARM64 candidate `libshotmeter-v40.so` embeds Dobby and
+observes four already-exported functions: `EVT_UserShotReleased`,
+`HUR_GetShotReleaseTiming`, `HUR_GetReleaseTimingThresholdValues`, and
+`HUR_GetReleaseTimingWindowBoundsForTiming`. It records the original
+classifier input/result and the actual adjusted threshold outputs while
+calling each original function exactly once. The agent uses `RTLD_NOLOAD`
+and does not modify the original game ELF file, timing, game objects, audio,
+or rendering.
+
+The strict ARM64 build and artifact checks passed in
+[GitHub Actions run #84](https://github.com/Sampota/nba2k20-android-ndk-smoke/actions/runs/44725415165).
+Artifact SHA-256:
+`56eaa1c9ebd432458fb7b96be97d40cec3036b2af77e55833ce73a85652523bd`.
+
+**Important:** v40 is a read-only diagnostic agent. It has not been attached
+to the game on-device; its runtime threshold callbacks have not been captured.
+It does not yet implement GREEN GIANT audio/visual effects, eligibility
+filtering, deduplication, or permanent auto-loading.
