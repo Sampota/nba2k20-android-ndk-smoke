@@ -17,9 +17,28 @@ FetchContent_MakeAvailable(shadowhook_source)
 # ships Clang 21, which adds diagnostics not fatal under its older toolchains.
 # Keep upstream warnings visible but non-fatal; our own probe remains -Werror.
 target_compile_options(shadowhook PRIVATE -Wno-error)
-# Upstream's common version map lists optional ARM32 VFP helpers; this target
-# is ARM64-only, so allow the unused architecture-specific export patterns.
-target_link_options(shadowhook PRIVATE -Wl,--undefined-version)
+# Upstream uses one version map for both ARM and ARM64. Its ARM32-only VFP
+# glue exports do not exist in the ARM64 build, and LLD rejects them as
+# undefined version-script entries. Generate an ARM64-specific map with only
+# those two unavailable ARM32 exports removed.
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    set(_shadowhook_map_source
+        "${shadowhook_source_SOURCE_DIR}/shadowhook/src/main/cpp/shadowhook.map.txt")
+    set(_shadowhook_map_arm64
+        "${shadowhook_source_BINARY_DIR}/shadowhook-arm64.map.txt")
+    file(READ "${_shadowhook_map_source}" _shadowhook_map_contents)
+    string(REPLACE "        shadowhook_interceptor_glue_vfpv3d16;\n" ""
+        _shadowhook_map_contents "${_shadowhook_map_contents}")
+    string(REPLACE "        shadowhook_interceptor_glue_vfpv3d32;\n" ""
+        _shadowhook_map_contents "${_shadowhook_map_contents}")
+    file(WRITE "${_shadowhook_map_arm64}" "${_shadowhook_map_contents}")
+
+    get_target_property(_shadowhook_link_options shadowhook LINK_OPTIONS)
+    list(FILTER _shadowhook_link_options EXCLUDE REGEX "version-script=")
+    set_property(TARGET shadowhook PROPERTY LINK_OPTIONS "${_shadowhook_link_options}")
+    target_link_options(shadowhook PRIVATE
+        "-Wl,--version-script=${_shadowhook_map_arm64}")
+endif()
 
 find_library(android_log log REQUIRED)
 
