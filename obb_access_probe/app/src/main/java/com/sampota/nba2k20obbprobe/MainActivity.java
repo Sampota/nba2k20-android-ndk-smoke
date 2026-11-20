@@ -149,6 +149,33 @@ public final class MainActivity extends Activity {
         inspectFile(report, new File(originalDir,
                 "patch.98.com.t2ksports.nba2k20and.obb"));
 
+        File downloadCopyDir = new File(external,
+                "Download/com.t2ksports.nba2k20and");
+        report.append("\\nUser-reported Download copy directory: ")
+                .append(downloadCopyDir.getAbsolutePath()).append("\\n");
+        report.append("Directory exists: ").append(downloadCopyDir.exists())
+                .append(", isDirectory: ").append(downloadCopyDir.isDirectory())
+                .append(", canRead: ").append(downloadCopyDir.canRead()).append("\\n");
+        if (downloadCopyDir.isDirectory()) {
+            File[] entries = downloadCopyDir.listFiles();
+            if (entries == null) {
+                report.append("Directory listing: FAILED or denied\\n");
+            } else {
+                report.append("Directory entries: ").append(entries.length).append("\\n");
+                for (File entry : entries) {
+                    report.append(" - ").append(entry.getName())
+                            .append(" | file=").append(entry.isFile())
+                            .append(" | dir=").append(entry.isDirectory())
+                            .append(" | bytes=").append(entry.isFile() ? entry.length() : -1)
+                            .append(" | canRead=").append(entry.canRead()).append("\\n");
+                }
+                inspectFile(report, new File(downloadCopyDir,
+                        "main.98.com.t2ksports.nba2k20and.obb"));
+                inspectFile(report, new File(downloadCopyDir,
+                        "patch.98.com.t2ksports.nba2k20and.obb"));
+            }
+        }
+
         lastReport = report.toString();
         output.setText(lastReport);
         Log.i(TAG, lastReport);
