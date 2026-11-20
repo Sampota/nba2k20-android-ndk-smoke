@@ -92,15 +92,20 @@ The agent uses `RTLD_NOLOAD` to find the already-loaded game ELF. Dobby is stati
 - CMake target `shotmeter_dobby_v40_timing_agent` added, output `libshotmeter-v40.so`.
 - Workflow updated to verify AArch64, embedded hook-engine dependencies, `Agent_OnAttach` / `Agent_OnUnload`, diagnostic marker, and all four target symbols.
 - Build run #83 (CMake target included; build job) succeeded.
-- Strict v40 artifact-verification run #84 was triggered and is pending at the time this note was written:
+- Strict v40 artifact-verification run #84 completed successfully:
   https://github.com/Sampota/nba2k20-android-ndk-smoke/actions/runs/44725415165
+- Artifact ID: `14624011323`
+- Artifact name: `shotmeter-dobby-v40-timing-observer-arm64`
+- Extracted output: `libshotmeter-v40.so`, 801,048 bytes.
+- SHA-256: `56eaa1c9ebd432458fb7b96be97d40cec3036b2af77e55833ce73a85652523bd`
+- ELF64 AArch64; exported `Agent_OnAttach` / `Agent_OnUnload`; only Android system dynamic dependencies (`liblog.so`, `libdl.so`, `libm.so`, `libc.so`). No separate Dobby, ShadowHook, or C++ shared-library dependency.
 
 ## What remains
 
-- Confirm run #84 succeeds and download/checksum the v40 artifact.
+- v40 CI verification and artifact extraction/checksum are complete. No on-device attachment or gameplay test was performed.
 - Do not attach or ask the user to take more shots unless they later authorize an on-device capture.
 - The game-specific numeric threshold values still require runtime/tuning-data evidence; v40 is prepared to capture them if that work is resumed.
 - GREEN GIANT visual/audio effects, player eligibility filtering, duplicate suppression, and final deployment are not implemented in v40.
 - The one-library non-root deployment path remains subject to the existing debug/JVMTI attach constraints. v40 is a diagnostic agent, not a permanent auto-loader.
 
-**Status: STATIC CLASSIFIER AND RATING FORMULA REINSPECTED; V40 READ-ONLY TIMING OBSERVER ADDED; STRICT CI VERIFICATION PENDING. NO GAMEPLAY TEST REQUIRED FOR THIS STATIC/BUILD PHASE.**
+**Status: STATIC CLASSIFIER AND RATING FORMULA REINSPECTED; V40 READ-ONLY TIMING OBSERVER BUILT, STRICT CI VERIFICATION PASSED, AND ARTIFACT CHECKSUM VERIFIED. NO ON-DEVICE V40 TEST WAS PERFORMED.**
