@@ -31,6 +31,11 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(dobby_source)
 set_target_properties(dobby_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Dobby's POSIX code-patching source includes headers relative to its
+# source/ directory; expose that root explicitly on both upstream targets.
+target_include_directories(dobby PRIVATE "${dobby_source_SOURCE_DIR}/source")
+target_include_directories(dobby_static PRIVATE "${dobby_source_SOURCE_DIR}/source")
+
 # The pinned upstream ARM64 bridge assembly spells its PC-relative symbol
 # relocations using Mach-O @PAGE/@PAGEOFF even in its Android source list.
 # Rewrite only these two operands to their equivalent AArch64 ELF relocations.
