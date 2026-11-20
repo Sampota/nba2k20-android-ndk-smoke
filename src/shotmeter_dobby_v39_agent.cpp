@@ -244,7 +244,8 @@ static void write_diagnostic(void) {
         "last_release_arg1=%.6f\n"
         "last_material_crc=0x%08x\n"
         "last_material_enabled=%u\n"
-        "game_state_modified=0\n"
+        "game_object_state_modified=0\n"
+        "original_library_file_modified=0\n"
         "audio_or_rendering_changed=0\n"
         "status=%s\n",
         g_self_test_code == 0 ? "PASS" : "FAIL",
