@@ -290,3 +290,32 @@ set_target_properties(shotmeter_dobby_agent PROPERTIES
     VISIBILITY_INLINES_HIDDEN YES
 )
 
+# v39 keeps the proven v38 self-test and adds three observation-only hooks
+# against symbols in an already-loaded NBA 2K20 ELF. Dobby remains embedded.
+set(_shotmeter_dobby_v39_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v39.map.txt")
+file(WRITE "${_shotmeter_dobby_v39_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+
+add_library(shotmeter_dobby_v39_agent SHARED src/shotmeter_dobby_v39_agent.cpp)
+target_link_libraries(shotmeter_dobby_v39_agent PRIVATE
+    dobby_static
+    ${android_log}
+    ${android_dl}
+)
+target_compile_features(shotmeter_dobby_v39_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v39_agent PRIVATE
+    -Wall -Wextra -Werror
+    -fvisibility=hidden
+)
+target_link_options(shotmeter_dobby_v39_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v39_agent_map}"
+)
+set_target_properties(shotmeter_dobby_v39_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v39"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
