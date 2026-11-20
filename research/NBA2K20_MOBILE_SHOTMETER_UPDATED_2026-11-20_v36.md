@@ -88,8 +88,21 @@ Commits:
 Workflow run triggered by the latest commit:
 - Run #42, ID `44694397735`
 - https://github.com/Sampota/nba2k20-android-ndk-smoke/actions/runs/44694397735
-- At the time of this handoff, toolchain setup and CMake configure completed successfully; the native build step was still running.
-- Do not claim a successful revised artifact until build, ELF checks, marker-string checks, and artifact upload all complete.
+- Conclusion: **success**; every job step completed, including native build, ELF/export checks, marker-string checks, and single-file agent artifact upload.
+- Artifact ID: `14610495506` (`shotmeter-nonroot-jvmti-agent-arm64`).
+- ZIP size: 201,818 bytes; ZIP digest: `sha256:cf07b6db02bd2e27a85d48154a1dbe5b6496ac9809bfef02e5cfe5cb28dd535d`.
+
+Downloaded and independently inspected the artifact contents:
+- Binary: `libshotmeter.so`, 561,640 bytes.
+- SHA-256: `a44f40a18e7f399515cfaa744d0b76a869231d6efb969477458aac0f48e66947`.
+- ELF64, little-endian, AArch64; built by Android NDK r30 for Android API 21.
+- SONAME: `libshotmeter.so`.
+- Required dynamic dependencies: `liblog.so`, `libdl.so`, `libm.so`, `libc.so`; no `libshadowhook.so` dependency.
+- Dynamic exports confirmed: `Agent_OnAttach` and `Agent_OnUnload`.
+- ELF `INIT_ARRAY` is present for constructor execution.
+- All three marker-name strings are present in the binary.
+
+The new build is CI-verified and structurally inspected. It has **not** yet been loaded on the user's phone; runtime markers and game hooks remain unverified.
 
 ## How to interpret v36 marker files
 
@@ -154,8 +167,10 @@ The original APK's NativeActivity metadata selects `nba2k20_clean_opt`; placing 
 - Shell access to `/proc/<pid>/maps`: BLOCKED
 - Independent ELF-load / callback / installer markers: ADDED
 - CI marker-string checks: ADDED
-- Revised ARM64 CI build: IN PROGRESS at run #42 when this note was created
-- New artifact/hash: PENDING
+- Revised ARM64 CI build: SUCCESS (workflow run #42)
+- New artifact: `libshotmeter.so`, 561,640 bytes
+- New binary SHA-256: `a44f40a18e7f399515cfaa744d0b76a869231d6efb969477458aac0f48e66947`
+- ELF/exports/dependencies/constructor/marker strings: VERIFIED
 - On-device marker verification: PENDING
 - Hook registrations and in-game telemetry: NOT VERIFIED
 - GREEN GIANT behavior: NOT IMPLEMENTED
