@@ -88,6 +88,14 @@ JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *vm, char *options, void *reserved)
                    (unsigned int)status);
     write_marker("shotmeter.probe-result", result);
 
+    char diagnostic[256];
+    (void)snprintf(diagnostic, sizeof(diagnostic),
+                   "probe_status=0x%x\nshadowhook_init_code=%d\nshadowhook_init_message=%s\n",
+                   (unsigned int)status,
+                   shotmeter_probe_get_init_error_code(),
+                   shotmeter_probe_get_init_error_message());
+    write_marker("shotmeter.init-diagnostic", diagnostic);
+
     if (status != 0) {
         LOGE("shotmeter_probe_install returned status mask 0x%x",
              (unsigned int)status);
