@@ -289,6 +289,8 @@ static struct {
     bool ok = false, es3 = false;
     int labelTiming = -99;
     float labelWidth = 0.0f;
+    float smoothAnchorX = 0.0f, smoothAnchorY = 0.0f;
+    bool anchorInitialized = false;
 } G;
 
 static GLuint compile_horn_shader(GLenum type, const char *source) {
@@ -840,10 +842,24 @@ static void draw_overlay(EGLDisplay display, EGLSurface surface) {
 
     const float sx = static_cast<float>(vp[2]) / static_cast<float>(sw);
     const float sy = static_cast<float>(vp[3]) / static_cast<float>(sh);
-    const float anchor_x = load_float(g_anchor_x_bits);
-    const float anchor_y = load_float(g_anchor_y_bits);
-    const GLint ax = vp[0] + static_cast<GLint>(std::lround(anchor_x * sx));
-    const GLint top_y = static_cast<GLint>(std::lround(anchor_y * sy));
+    const float target_x = load_float(g_anchor_x_bits);
+    const float target_y = load_float(g_anchor_y_bits);
+    /* Ease only the rendered head anchor over a couple of frames. A large
+       camera/view change resets immediately; release timing and progress are
+       never delayed or filtered by this position-only interpolation. */
+    if (!G.anchorInitialized ||
+        std::fabs(target_x - G.smoothAnchorX) > static_cast<float>(sw) * 0.30f ||
+        std::fabs(target_y - G.smoothAnchorY) > static_cast<float>(sh) * 0.30f) {
+        G.smoothAnchorX = target_x;
+        G.smoothAnchorY = target_y;
+        G.anchorInitialized = true;
+    } else {
+        constexpr float kAnchorEase = 0.42f;
+        G.smoothAnchorX += (target_x - G.smoothAnchorX) * kAnchorEase;
+        G.smoothAnchorY += (target_y - G.smoothAnchorY) * kAnchorEase;
+    }
+    const GLint ax = vp[0] + static_cast<GLint>(std::lround(G.smoothAnchorX * sx));
+    const GLint top_y = static_cast<GLint>(std::lround(G.smoothAnchorY * sy));
     const GLint ay = vp[1] + vp[3] - top_y;
     draw_horn(vp[2], vp[3], ax, ay, progress, perfect, resultTiming);
     g_draw_calls.fetch_add(1, std::memory_order_relaxed);
