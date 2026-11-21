@@ -23,11 +23,11 @@
 #include "dobby.h"
 #include "greengiant_ima_b64.h"
 
-#define LOG_TAG "ShotmeterDobbyV50"
+#define LOG_TAG "ShotmeterDobbyV50R1"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define FILES_DIR "/data/user/0/com.t2ksports.nba2k20and/files"
-#define DIAG_NAME "shotmeter.dobby-v50-render-probability-diagnostic"
+#define DIAG_NAME "shotmeter.dobby-v50r1-audited-diagnostic"
 
 static constexpr uintptr_t kManagerOffset = 0x3c700e0ULL;
 static constexpr uintptr_t kSavedViewOffset = 0x90ULL;
@@ -41,9 +41,6 @@ static const char kProjectSymbol[] = "_Z14VCView_ProjectPK6VCVIEWPKDv4_fPS2_";
 static const char kComponentSymbol[] = "g_ShotIndicatorComponent";
 static const char kSwapSymbol[] = "eglSwapBuffers";
 static const char kReleaseEventSymbol[] = "_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff";
-static const char kJumpReleaseSymbol[] = "_Z17MVS_ReleaseJumperP8AI_ACTOR";
-static const char kBalancedLaunchSymbol[] = "_Z30PHY_LaunchShotBalancedDiceRollP8AI_ACTORP7AI_BALLif5_bool19PHY_SHOT_TRAJECTORY23MVS_SHOT_RELEASE_TIMING";
-static const char kDetermineOutcomeSymbol[] = "_Z34Phy_DetermineShotSimulationOutcomefP12AI_NBA_ACTORj";
 
 using DoDrawFn = void (*)(void *, void *);
 using HeadFn = void (*)(void *, float *);
@@ -51,9 +48,6 @@ using ProjectFn = float (*)(const void *, const float *, float *);
 using SwapFn = EGLBoolean (*)(EGLDisplay, EGLSurface);
 using TestFn = int (*)(int);
 using ReleaseFn = void (*)(void *, int32_t, float, float);
-using JumpReleaseFn = void (*)(void *);
-using BalancedLaunchFn = void (*)(void *, void *, int32_t, float, bool, int32_t, int32_t);
-using DetermineOutcomeFn = void (*)(float, void *, uint32_t);
 
 static void *g_game = nullptr;
 static const char *g_game_name = "not-found";
@@ -71,12 +65,6 @@ static HeadFn g_get_head = nullptr;
 static ProjectFn g_project = nullptr;
 static SwapFn g_original_swap = nullptr;
 static ReleaseFn g_original_release_event = nullptr;
-static void *g_jump_release_address = nullptr;
-static void *g_balanced_launch_address = nullptr;
-static void *g_determine_outcome_address = nullptr;
-static JumpReleaseFn g_original_jump_release = nullptr;
-static BalancedLaunchFn g_original_balanced_launch = nullptr;
-static DetermineOutcomeFn g_original_determine_outcome = nullptr;
 
 static int g_self_code = -999, g_self_base = -999;
 static int g_self_original = -999, g_self_patched = -999;
@@ -87,18 +75,6 @@ static std::atomic<uint32_t> g_do_draw_calls{0}, g_projection_calls{0};
 static std::atomic<uint32_t> g_projection_valid{0}, g_swap_calls{0};
 static std::atomic<uint32_t> g_active_meter_frames{0}, g_draw_calls{0};
 static std::atomic<uint32_t> g_release_event_calls{0}, g_perfect_release_events{0}, g_perfect_flash_frames{0};
-static std::atomic<int32_t> g_jump_release_code{-999}, g_balanced_launch_code{-999}, g_determine_outcome_code{-999};
-static std::atomic<uint32_t> g_jump_release_calls{0}, g_tracked_jump_release_matches{0};
-static std::atomic<uint32_t> g_balanced_launch_calls{0}, g_tracked_balanced_launch_calls{0};
-static std::atomic<uint32_t> g_shot_outcome_calls{0}, g_probability_override_calls{0};
-static std::atomic<uint32_t> g_probability_green_forced{0}, g_probability_slight_targets{0};
-static std::atomic<uint32_t> g_probability_very_targets{0}, g_probability_skipped_forced{0};
-static std::atomic<int32_t> g_probability_last_timing{-1};
-static std::atomic<uint32_t> g_probability_last_actor_match{0};
-static std::atomic<uint32_t> g_probability_last_flags_before{0}, g_probability_last_flags_after{0};
-static std::atomic<uint32_t> g_probability_last_input_bits{0}, g_probability_last_target_bits{0};
-static thread_local bool t_tracked_release = false;
-static thread_local int32_t t_release_timing = -1;
 static std::atomic<int32_t> g_last_release_timing{-1};
 static std::atomic<uint64_t> g_perfect_until_ns{0};
 static std::atomic<uint64_t> g_result_until_ns{0};
@@ -130,6 +106,7 @@ static std::atomic<int32_t> g_gl_vertex_status{-1}, g_gl_fragment_status{-1}, g_
 static std::atomic<int32_t> g_gl_draw_error_code{-1};
 static std::atomic<uint32_t> g_gl_init_attempts{0};
 static std::atomic<uintptr_t> g_egl_context_value{0}, g_egl_display_value{0}, g_egl_surface_value{0};
+static std::atomic<uint32_t> g_gl_identity_captured{0};
 static pthread_mutex_t g_gl_diag_mutex = PTHREAD_MUTEX_INITIALIZER;
 static char g_gl_version[160] = {}, g_gl_renderer[160] = {}, g_gl_vendor[160] = {};
 static char g_glsl_version[160] = {}, g_gl_shader_log[768] = {};
@@ -953,88 +930,6 @@ static void release_event_proxy(void *actor, int32_t timing, float arg0, float a
 }
 
 
-static constexpr uint32_t kFlagBalancedShotRoll = 1u << 3;
-static constexpr uint32_t kFlagForceShotMake = 1u << 5;
-static constexpr uint32_t kFlagForceShotMiss = 1u << 6;
-
-__attribute__((noinline))
-static void jump_release_proxy(void *actor) {
-    g_jump_release_calls.fetch_add(1, std::memory_order_relaxed);
-    const uintptr_t tracked = g_component
-        ? *reinterpret_cast<volatile uintptr_t *>(g_component + 0x08) : 0;
-    const int32_t state = g_component
-        ? *reinterpret_cast<volatile int32_t *>(g_component + 0x18) : -1;
-    const bool matches = actor && tracked &&
-        reinterpret_cast<uintptr_t>(actor) == tracked && state == 2;
-    if (matches) g_tracked_jump_release_matches.fetch_add(1, std::memory_order_relaxed);
-    const bool previousTracked = t_tracked_release;
-    const int32_t previousTiming = t_release_timing;
-    t_tracked_release = matches;
-    t_release_timing = -1;
-    const JumpReleaseFn original = g_original_jump_release;
-    if (original) original(actor);
-    t_tracked_release = previousTracked;
-    t_release_timing = previousTiming;
-}
-
-__attribute__((noinline))
-static void balanced_launch_proxy(void *actor, void *ball, int32_t shotType,
-                                  float chance, bool option, int32_t trajectory,
-                                  int32_t releaseTiming) {
-    g_balanced_launch_calls.fetch_add(1, std::memory_order_relaxed);
-    const int32_t previousTiming = t_release_timing;
-    if (t_tracked_release) {
-        g_tracked_balanced_launch_calls.fetch_add(1, std::memory_order_relaxed);
-        t_release_timing = releaseTiming;
-    }
-    const BalancedLaunchFn original = g_original_balanced_launch;
-    if (original) original(actor, ball, shotType, chance, option, trajectory, releaseTiming);
-    t_release_timing = previousTiming;
-}
-
-__attribute__((noinline))
-static void determine_outcome_proxy(float chance, void *actor, uint32_t flags) {
-    g_shot_outcome_calls.fetch_add(1, std::memory_order_relaxed);
-    float target = chance;
-    uint32_t targetFlags = flags;
-    const int32_t timing = t_release_timing;
-    if (t_tracked_release && timing >= 1 && timing <= 5 &&
-        (flags & kFlagBalancedShotRoll) != 0) {
-        const uintptr_t tracked = g_component
-            ? *reinterpret_cast<volatile uintptr_t *>(g_component + 0x08) : 0;
-        g_probability_last_actor_match.store(
-            actor && tracked && reinterpret_cast<uintptr_t>(actor) == tracked ? 1U : 0U,
-            std::memory_order_relaxed);
-        g_probability_last_timing.store(timing, std::memory_order_relaxed);
-        store_float(g_probability_last_input_bits, chance);
-        g_probability_last_flags_before.store(flags, std::memory_order_relaxed);
-        /* Leave explicit stock/scripted make or miss decisions untouched. */
-        if ((flags & (kFlagForceShotMake | kFlagForceShotMiss)) == 0) {
-            if (timing == 3) {
-                /* Stock outcome function checks bit 5 first and writes a made shot. */
-                target = 1.0f;
-                targetFlags = (flags & ~kFlagBalancedShotRoll) | kFlagForceShotMake;
-                g_probability_green_forced.fetch_add(1, std::memory_order_relaxed);
-            } else if (timing == 2 || timing == 4) {
-                target = 0.50f;
-                targetFlags = flags & ~kFlagBalancedShotRoll;
-                g_probability_slight_targets.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                target = 0.10f;
-                targetFlags = flags & ~kFlagBalancedShotRoll;
-                g_probability_very_targets.fetch_add(1, std::memory_order_relaxed);
-            }
-            g_probability_override_calls.fetch_add(1, std::memory_order_relaxed);
-            store_float(g_probability_last_target_bits, target);
-            g_probability_last_flags_after.store(targetFlags, std::memory_order_relaxed);
-        } else {
-            g_probability_skipped_forced.fetch_add(1, std::memory_order_relaxed);
-        }
-    }
-    const DetermineOutcomeFn original = g_original_determine_outcome;
-    if (original) original(target, actor, targetFlags);
-}
-
 static void draw_overlay(EGLDisplay display, EGLSurface surface) {
     if (!g_component || g_anchor_valid.load(std::memory_order_acquire) == 0) return;
     const uintptr_t tracked = *reinterpret_cast<volatile uintptr_t *>(g_component + 0x08);
@@ -1127,9 +1022,51 @@ static void draw_overlay(EGLDisplay display, EGLSurface surface) {
     g_draw_calls.fetch_add(1, std::memory_order_relaxed);
 }
 
+/* Capture EGL/GL state on ordinary frames too. Previously the report
+   sampled these fields only while a shot meter was active, which made an idle
+   player frame look like GL had never initialized. */
+static void capture_swap_diagnostics(EGLDisplay display, EGLSurface surface) {
+    const EGLContext context = eglGetCurrentContext();
+    g_egl_context_value.store(reinterpret_cast<uintptr_t>(context), std::memory_order_relaxed);
+    g_egl_display_value.store(reinterpret_cast<uintptr_t>(display), std::memory_order_relaxed);
+    g_egl_surface_value.store(reinterpret_cast<uintptr_t>(surface), std::memory_order_relaxed);
+    if (context == EGL_NO_CONTEXT) return;
+
+    EGLint sw = 0, sh = 0;
+    if (display != EGL_NO_DISPLAY && surface != EGL_NO_SURFACE &&
+        eglQuerySurface(display, surface, EGL_WIDTH, &sw) == EGL_TRUE &&
+        eglQuerySurface(display, surface, EGL_HEIGHT, &sh) == EGL_TRUE) {
+        g_surface_w.store(sw, std::memory_order_relaxed);
+        g_surface_h.store(sh, std::memory_order_relaxed);
+    }
+    GLint viewport[4] = {0, 0, 0, 0};
+    GLint framebuffer = -1;
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
+    g_viewport_w.store(viewport[2], std::memory_order_relaxed);
+    g_viewport_h.store(viewport[3], std::memory_order_relaxed);
+    g_framebuffer.store(framebuffer, std::memory_order_relaxed);
+
+    uint32_t expected = 0;
+    if (g_gl_identity_captured.compare_exchange_strong(expected, 1,
+            std::memory_order_acq_rel)) {
+        const GLubyte *version = glGetString(GL_VERSION);
+        if (version) {
+            set_gl_string(g_gl_version, sizeof(g_gl_version), version);
+            set_gl_string(g_gl_renderer, sizeof(g_gl_renderer), glGetString(GL_RENDERER));
+            set_gl_string(g_gl_vendor, sizeof(g_gl_vendor), glGetString(GL_VENDOR));
+            set_gl_string(g_glsl_version, sizeof(g_glsl_version),
+                          glGetString(GL_SHADING_LANGUAGE_VERSION));
+        } else {
+            g_gl_identity_captured.store(0, std::memory_order_release);
+        }
+    }
+}
+
 __attribute__((noinline))
 static EGLBoolean swap_proxy(EGLDisplay display, EGLSurface surface) {
     g_swap_calls.fetch_add(1, std::memory_order_relaxed);
+    capture_swap_diagnostics(display, surface);
     draw_overlay(display, surface);
     return g_original_swap ? g_original_swap(display, surface) : EGL_FALSE;
 }
@@ -1166,7 +1103,7 @@ static void write_diagnostic(void) {
     snprintf(glShaderLog, sizeof(glShaderLog), "%s", g_gl_shader_log);
     pthread_mutex_unlock(&g_gl_diag_mutex);
     (void)snprintf(body, sizeof(body),
-        "agent=v49\npurpose=player_anchored_smooth_opengles_horn\nengine=Dobby\n"
+        "agent=v50.1\npurpose=player_anchored_smooth_opengles_horn_with_idle_egl_diagnostics\nengine=Dobby\n"
         "engine_commit=5dfc8546954ce3b3198132ab13fddb89ee92cdd7\n"
         "target_library=%s\ncomponent_symbol=%s\ncomponent_address=%p\n"
         "do_draw_address=%p\ndo_draw_hook_code=%d\nhead_location_address=%p\n"
@@ -1201,17 +1138,8 @@ static void write_diagnostic(void) {
         "vertex_shader_status=%d\nfragment_shader_status=%d\nprogram_link_status=%d\n"
         "shader_log=%s\ngl_draw_error_code=%d\ngl_draw_error_count=%u\n"
         "gl_init_attempts=%u\n"
-        "jump_release_address=%p\njump_release_hook_code=%d\n"
-        "balanced_launch_address=%p\nbalanced_launch_hook_code=%d\n"
-        "determine_outcome_address=%p\ndetermine_outcome_hook_code=%d\n"
-        "jump_release_calls=%u\ntracked_jump_release_matches=%u\n"
-        "balanced_launch_calls=%u\ntracked_balanced_launch_calls=%u\n"
-        "shot_outcome_calls=%u\nprobability_override_calls=%u\n"
-        "probability_green_forced=%u\nprobability_slight_targets=%u\n"
-        "probability_very_targets=%u\nprobability_skipped_existing_forced=%u\n"
-        "last_probability_timing=%d\nlast_probability_actor_match=%u\n"
-        "last_probability_input=%.6g\nlast_probability_target=%.6g\n"
-        "last_probability_flags_before=0x%x\nlast_probability_flags_after=0x%x\n"
+        "probability_hooks_enabled=0\n"
+        "probability_status=DEFERRED_UNTIL_MAIN_LIBRARY_ABI_AND_FLAG_DISASSEMBLY_VERIFIED\n"
         "status=%s\n",
         g_game_name, kComponentSymbol, (const void *)g_component,
         g_do_draw_address, g_do_draw_code, g_head_address, (void *)g_saved_view,
@@ -1246,17 +1174,7 @@ static void write_diagnostic(void) {
         g_gl_vertex_status.load(), g_gl_fragment_status.load(), g_gl_link_status.load(),
         glShaderLog, g_gl_draw_error_code.load(), g_gl_draw_error_count.load(),
         g_gl_init_attempts.load(),
-        g_jump_release_address, g_jump_release_code.load(),
-        g_balanced_launch_address, g_balanced_launch_code.load(),
-        g_determine_outcome_address, g_determine_outcome_code.load(),
-        g_jump_release_calls.load(), g_tracked_jump_release_matches.load(),
-        g_balanced_launch_calls.load(), g_tracked_balanced_launch_calls.load(),
-        g_shot_outcome_calls.load(), g_probability_override_calls.load(),
-        g_probability_green_forced.load(), g_probability_slight_targets.load(),
-        g_probability_very_targets.load(), g_probability_skipped_forced.load(),
-        g_probability_last_timing.load(), g_probability_last_actor_match.load(),
-        load_float(g_probability_last_input_bits), load_float(g_probability_last_target_bits),
-        g_probability_last_flags_before.load(), g_probability_last_flags_after.load(), status);
+        status);
     const int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     if (fd < 0) { LOGE("diagnostic open failed errno=%d", errno); return; }
     const size_t len = strlen(body);
@@ -1303,9 +1221,6 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
         g_project_address = resolve(g_game, kProjectSymbol);
         g_swap_address = resolve(g_game, kSwapSymbol);
         g_release_event_address = resolve(g_game, kReleaseEventSymbol);
-        g_jump_release_address = resolve(g_game, kJumpReleaseSymbol);
-        g_balanced_launch_address = resolve(g_game, kBalancedLaunchSymbol);
-        g_determine_outcome_address = resolve(g_game, kDetermineOutcomeSymbol);
         g_get_head = reinterpret_cast<HeadFn>(g_head_address);
         g_project = reinterpret_cast<ProjectFn>(g_project_address);
         const bool view_ok = derive_saved_view();
@@ -1325,24 +1240,6 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
                 (void *)&release_event_proxy, &original_release);
             g_original_release_event = reinterpret_cast<ReleaseFn>(original_release);
         } else g_release_event_code = -1004;
-        if (g_jump_release_address) {
-            void *original_jump = nullptr;
-            g_jump_release_code = DobbyHook(g_jump_release_address,
-                (void *)&jump_release_proxy, &original_jump);
-            g_original_jump_release = reinterpret_cast<JumpReleaseFn>(original_jump);
-        } else g_jump_release_code = -1005;
-        if (g_balanced_launch_address) {
-            void *original_launch = nullptr;
-            g_balanced_launch_code = DobbyHook(g_balanced_launch_address,
-                (void *)&balanced_launch_proxy, &original_launch);
-            g_original_balanced_launch = reinterpret_cast<BalancedLaunchFn>(original_launch);
-        } else g_balanced_launch_code = -1006;
-        if (g_determine_outcome_address) {
-            void *original_outcome = nullptr;
-            g_determine_outcome_code = DobbyHook(g_determine_outcome_address,
-                (void *)&determine_outcome_proxy, &original_outcome);
-            g_original_determine_outcome = reinterpret_cast<DetermineOutcomeFn>(original_outcome);
-        } else g_determine_outcome_code = -1007;
     } else {
         g_do_draw_code = -1001;
         g_swap_code = -1001;
@@ -1356,15 +1253,15 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
             pthread_detach(sound_thread);
         else g_sound_init_code.store(-2002, std::memory_order_release);
     }
-    LOGI("v50 embedded Green Giant audio init=%s code=%d", sound_ready ? "ready" : "unavailable", g_sound_init_code.load());
+    LOGI("v50.1 embedded Green Giant audio init=%s code=%d", sound_ready ? "ready" : "unavailable", g_sound_init_code.load());
     g_init_state.store(2, std::memory_order_release);
     write_diagnostic();
     pthread_t thread;
     if (pthread_create(&thread, nullptr, reporter, nullptr) == 0) pthread_detach(thread);
     else LOGE("diagnostic reporter thread creation failed");
-    LOGI("v50 shader-diagnostic horn meter attached; probability hooks jump=%d launch=%d outcome=%d", g_jump_release_code.load(), g_balanced_launch_code.load(), g_determine_outcome_code.load());
+    LOGI("v50.1 audited horn meter attached; probability hooks disabled pending ABI/flag verification");
     return JNI_OK;
 }
 extern "C" JNIEXPORT void JNICALL Agent_OnUnload(JavaVM *) {
-    LOGI("v50 smooth horn meter unloading");
+    LOGI("v50.1 audited horn meter unloading");
 }
