@@ -883,15 +883,15 @@ static void write_diagnostic(void) {
         "last_release_value=%.7g\nlast_release_position=%.7g\n"
         "release_pre_state=%d\nrelease_pre_component_timing=%d\n"
         "release_arg0=%.7g\nrelease_arg1=%.7g\neligible_local_release_events=%u\n"
-        "shader_init_code=%d\\nresult_timing_enum=%d\\nresult_sequence=%u\\n"
-        "release_event_callbacks=%u\\nlast_release_timing_class=%d\\nperfect_class3_release_events=%u\\n"
-        "perfect_flash_active=%u\\nperfect_flash_frames=%u\\nsound_init_code=%d\\n"
-        "perfect_sound_play_count=%u\\nsurface_width=%d\\nsurface_height=%d\\n"
-        "viewport_width=%d\\nviewport_height=%d\\nframebuffer_binding=%d\\n"
-        "saved_view_copy_only=1\\ngame_owned_view_bytes_written=0\\n"
-        "game_object_fields_modified=0\\ncomponent_memory_modified=0\\n"
-        "original_meter_resource_modified=0\\nshot_timing_modified=0\\n"
-        "original_library_file_modified=0\\nstatus=%s\\n",
+        "shader_init_code=%d\nresult_timing_enum=%d\nresult_sequence=%u\n"
+        "release_event_callbacks=%u\nlast_release_timing_class=%d\nperfect_class3_release_events=%u\n"
+        "perfect_flash_active=%u\nperfect_flash_frames=%u\nsound_init_code=%d\n"
+        "perfect_sound_play_count=%u\nsurface_width=%d\nsurface_height=%d\n"
+        "viewport_width=%d\nviewport_height=%d\nframebuffer_binding=%d\n"
+        "saved_view_copy_only=1\ngame_owned_view_bytes_written=0\n"
+        "game_object_fields_modified=0\ncomponent_memory_modified=0\n"
+        "original_meter_resource_modified=0\nshot_timing_modified=0\n"
+        "original_library_file_modified=0\nstatus=%s\n",
         g_game_name, kComponentSymbol, (const void *)g_component,
         g_do_draw_address, g_do_draw_code, g_head_address, (void *)g_saved_view,
         g_project_address, g_swap_address, g_swap_code, g_release_event_address,
