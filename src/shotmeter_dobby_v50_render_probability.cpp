@@ -1065,8 +1065,10 @@ static void capture_swap_diagnostics(EGLDisplay display, EGLSurface surface) {
 
 __attribute__((noinline))
 static EGLBoolean swap_proxy(EGLDisplay display, EGLSurface surface) {
-    g_swap_calls.fetch_add(1, std::memory_order_relaxed);
-    capture_swap_diagnostics(display, surface);
+    const uint32_t frame = g_swap_calls.fetch_add(1, std::memory_order_relaxed) + 1;
+    /* One sample immediately, then about once per 60 rendered frames. */
+    if (frame == 1 || (frame % 60u) == 0u)
+        capture_swap_diagnostics(display, surface);
     draw_overlay(display, surface);
     return g_original_swap ? g_original_swap(display, surface) : EGL_FALSE;
 }
