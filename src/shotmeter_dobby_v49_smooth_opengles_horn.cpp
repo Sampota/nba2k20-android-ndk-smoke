@@ -91,6 +91,7 @@ static std::atomic<int32_t> g_viewport_w{0}, g_viewport_h{0};
 static std::atomic<int32_t> g_framebuffer{-1};
 static std::atomic<uint32_t> g_sound_play_count{0};
 static std::atomic<int32_t> g_sound_init_code{-999};
+static std::atomic<int32_t> g_shader_init_code{-999};
 static std::atomic<uint64_t> g_last_sound_ns{0};
 static pthread_mutex_t g_sound_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -415,6 +416,10 @@ static int glyph_index(char c) {
 }
 
 static void update_horn_label(int timing) {
+    GLint previousActive = GL_TEXTURE0, previousTexture = 0;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &previousActive);
+    glActiveTexture(GL_TEXTURE1);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
     static const uint8_t glyphs[9][7] = {
         {30,17,17,30,16,16,16}, // P
         {31,16,16,30,16,16,31}, // E
@@ -451,10 +456,13 @@ static void update_horn_label(int timing) {
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 42, 8, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     G.labelWidth = static_cast<float>(chars * 6);
     G.labelTiming = timing;
+    glBindTexture(GL_TEXTURE_2D, previousTexture);
+    glActiveTexture(previousActive);
 }
 
 static void draw_horn(int surfaceW, int surfaceH, int anchorX, int anchorY,
                       float progress, bool perfect, int resultTiming) {
+    (void)surfaceW;
     if (!G.ok) return;
     if (G.labelTiming != resultTiming) update_horn_label(resultTiming);
 
@@ -803,7 +811,7 @@ static void write_diagnostic(void) {
     const bool perfect_active = monotonic_ns() <= g_perfect_until_ns.load();
     char body[3072];
     (void)snprintf(body, sizeof(body),
-        "agent=v49\npurpose=player_anchored_smooth_opengles_player_anchored_horn\nengine=Dobby\n"
+        "agent=v49\npurpose=player_anchored_smooth_opengles_horn\nengine=Dobby\n"
         "engine_commit=5dfc8546954ce3b3198132ab13fddb89ee92cdd7\n"
         "target_library=%s\ncomponent_symbol=%s\ncomponent_address=%p\n"
         "do_draw_address=%p\ndo_draw_hook_code=%d\nhead_location_address=%p\n"
@@ -816,15 +824,16 @@ static void write_diagnostic(void) {
         "last_anchor_y=%.8g\nlast_anchor_z=%.8g\nlast_reciprocal_clip_w=%.8g\n"
         "anchor_valid=%u\negl_swap_callbacks=%u\nactive_meter_frames=%u\n"
         "overlay_draw_calls=%u\nlast_component_state=%d\nlast_tracked_player_present=%u\n"
-        "last_meter_value=%.7g\nlast_meter_position=%.7g\nrelease_event_callbacks=%u\n"
-        "last_release_timing_class=%d\nperfect_class3_release_events=%u\n"
-        "perfect_flash_active=%u\nperfect_flash_frames=%u\nsound_init_code=%d\n"
-        "perfect_sound_play_count=%u\nsurface_width=%d\nsurface_height=%d\n"
-        "viewport_width=%d\nviewport_height=%d\nframebuffer_binding=%d\n"
-        "saved_view_copy_only=1\ngame_owned_view_bytes_written=0\n"
-        "game_object_fields_modified=0\ncomponent_memory_modified=0\n"
-        "original_meter_resource_modified=0\nshot_timing_modified=0\n"
-        "original_library_file_modified=0\nstatus=%s\n",
+        "last_meter_value=%.7g\\nlast_meter_position=%.7g\\nprogress_mapping_scale=4\\n"
+        "shader_init_code=%d\\nresult_timing_enum=%d\\nresult_sequence=%u\\n"
+        "release_event_callbacks=%u\\nlast_release_timing_class=%d\\nperfect_class3_release_events=%u\\n"
+        "perfect_flash_active=%u\\nperfect_flash_frames=%u\\nsound_init_code=%d\\n"
+        "perfect_sound_play_count=%u\\nsurface_width=%d\\nsurface_height=%d\\n"
+        "viewport_width=%d\\nviewport_height=%d\\nframebuffer_binding=%d\\n"
+        "saved_view_copy_only=1\\ngame_owned_view_bytes_written=0\\n"
+        "game_object_fields_modified=0\\ncomponent_memory_modified=0\\n"
+        "original_meter_resource_modified=0\\nshot_timing_modified=0\\n"
+        "original_library_file_modified=0\\nstatus=%s\\n",
         g_game_name, kComponentSymbol, (const void *)g_component,
         g_do_draw_address, g_do_draw_code, g_head_address, (void *)g_saved_view,
         g_project_address, g_swap_address, g_swap_code, g_release_event_address,
@@ -836,7 +845,8 @@ static void write_diagnostic(void) {
         load_float(g_anchor_z_bits), load_float(g_clip_w_bits), g_anchor_valid.load(),
         g_swap_calls.load(), g_active_meter_frames.load(), g_draw_calls.load(),
         g_component_state.load(), g_tracked_player.load(), load_float(g_meter_bits),
-        load_float(g_marker_bits), g_release_event_calls.load(),
+        load_float(g_marker_bits), g_shader_init_code.load(), g_result_timing.load(),
+        g_result_sequence.load(), g_release_event_calls.load(),
         g_last_release_timing.load(), g_perfect_release_events.load(),
         perfect_active ? 1U : 0U, g_perfect_flash_frames.load(),
         g_sound_init_code.load(), g_sound_play_count.load(),
