@@ -108,8 +108,8 @@ static SLObjectItf g_sl_output_mix = nullptr;
 static SLObjectItf g_sl_player_object = nullptr;
 static SLPlayItf g_sl_play = nullptr;
 static SLAndroidSimpleBufferQueueItf g_sl_queue = nullptr;
-static constexpr uint32_t kGreenGiantSamples = 43247;
 static int16_t g_green_giant_pcm[kGreenGiantSamples]{};
+static std::atomic<uint32_t> g_sound_requests{0};
 
 static volatile int g_test_bias = 100;
 __attribute__((noinline, optnone)) static int test_target(int x) { return x + g_test_bias; }
@@ -192,7 +192,7 @@ static void do_draw_proxy(void *component, void *actor) {
 static constexpr float kHornAngBot = 1.1135f;
 static constexpr float kHornAngTop = -0.9931f;
 static constexpr float kHornWinLo = 0.900f;
-static constexpr float kPerfectRawInitial = 0.25f; // observed on the v48 class-3 diagnostic.
+static constexpr float kPerfectRawInitial = 0.25f; // measured v48 class-3 release baseline; refined from subsequent verified class-3 shots.
 static constexpr float kPerfectFillTarget = 0.945f; // inside the reduced Excellent cap zone.
 
 static const char kHornVS[] = R"(
@@ -232,10 +232,10 @@ void main() {
     vec2 p = (gl_FragCoord.xy - uOrigin) / uScale;
     p.y = 319.0 - p.y;
 
-    float labelW = uLabelSize.x + 8.0;
+    float labelW = uLabelSize.x + 12.0;
     float labelLeft = 247.0 - labelW - 5.0;
-    vec2 labelCenter = vec2(labelLeft + labelW * 0.5, 17.5);
-    float labelD = roundBox(p - labelCenter, vec2(labelW * 0.5, 7.5), 2.0);
+    vec2 labelCenter = vec2(labelLeft + labelW * 0.5, 18.0);
+    float labelD = roundBox(p - labelCenter, vec2(labelW * 0.5, 10.0), 2.5);
     float chip = cov(labelD) * step(0.5, uLabelSize.x);
     float d = horn(p);
     if (d > 20.0 && chip < 0.01) { gl_FragColor = vec4(0.0); return; }
@@ -268,10 +268,10 @@ void main() {
     alpha = alpha + chip * 0.96 * (1.0 - alpha);
     rgb = mix(rgb, uLabelTint * alpha, border);
 
-    vec2 tp = p - vec2(labelLeft + 4.0, 14.0);
+    vec2 tp = p - vec2(labelLeft + 6.0, 10.0);
     float inText = step(0.0, tp.x) * step(tp.x, uLabelSize.x) *
-                   step(0.0, tp.y) * step(tp.y, 7.0);
-    vec2 tuv = vec2(tp.x / max(1.0, uLabelSize.x), tp.y / 8.0);
+                   step(0.0, tp.y) * step(tp.y, 16.0);
+    vec2 tuv = vec2(tp.x / max(1.0, uLabelSize.x), tp.y / 16.0);
     float textA = texture2D(uLabelTex, tuv).a * inText * step(0.5, uLabelSize.x);
     rgb = mix(rgb, uLabelTint * alpha, textA);
     alpha = alpha + textA * (1.0 - alpha);
@@ -395,8 +395,8 @@ static bool init_horn_gl(void) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    static const uint8_t blank[42 * 8 * 4] = {};
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 42, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, blank);
+    static const uint8_t blank[84 * 16 * 4] = {};
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 84, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, blank);
 
     glUseProgram(G.prog);
     const float capAngle = kHornAngBot + (kHornAngTop - kHornAngBot) * kHornWinLo;
@@ -445,22 +445,24 @@ static void update_horn_label(int timing) {
     else if (timing == 1) { label = "EARLY"; tint[0]=0.90f; tint[1]=0.15f; tint[2]=0.15f; }
     else if (timing == 5) { label = "LATE"; tint[0]=0.90f; tint[1]=0.15f; tint[2]=0.15f; }
     const size_t chars = strlen(label);
-    uint8_t pixels[42 * 8 * 4] = {};
+    uint8_t pixels[84 * 16 * 4] = {};
     for (size_t x=0; x<chars; ++x) {
         const int gi = glyph_index(label[x]);
         if (gi < 0) continue;
         for (int y=0; y<7; ++y) {
             for (int col=0; col<5; ++col) {
                 if ((glyphs[gi][y] & (1u << (4-col))) == 0) continue;
-                const size_t at = (static_cast<size_t>(y) * 42 + x*6 + col) * 4;
-                pixels[at+0]=255; pixels[at+1]=255; pixels[at+2]=255; pixels[at+3]=255;
+                for (int yy=0; yy<2; ++yy) for (int xx=0; xx<2; ++xx) {
+                    const size_t at = (static_cast<size_t>(y*2+yy) * 84 + x*12 + col*2 + xx) * 4;
+                    pixels[at+0]=255; pixels[at+1]=255; pixels[at+2]=255; pixels[at+3]=255;
+                }
             }
         }
     }
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, G.labelTex);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 42, 8, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    G.labelWidth = static_cast<float>(chars * 6);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 84, 16, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    G.labelWidth = static_cast<float>(chars * 12);
     G.labelTiming = timing;
     glBindTexture(GL_TEXTURE_2D, previousTexture);
     glActiveTexture(previousActive);
@@ -655,7 +657,7 @@ static bool initialize_sound(void) {
         SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 2
     };
     SLDataFormat_PCM pcm_format = {
-        SL_DATAFORMAT_PCM, 1, SL_SAMPLINGRATE_44_1,
+        SL_DATAFORMAT_PCM, 1, kGreenGiantRate * 1000,
         SL_PCMSAMPLEFORMAT_FIXED_16, SL_PCMSAMPLEFORMAT_FIXED_16,
         SL_SPEAKER_FRONT_CENTER, SL_BYTEORDER_LITTLEENDIAN
     };
@@ -684,7 +686,7 @@ static bool initialize_sound(void) {
     return true;
 }
 
-static void play_perfect_sound(void) {
+static void play_perfect_sound_now(void) {
     if (!g_sl_play || !g_sl_queue) return;
     const uint64_t now = monotonic_ns();
     pthread_mutex_lock(&g_sound_mutex);
@@ -701,6 +703,21 @@ static void play_perfect_sound(void) {
         }
     }
     pthread_mutex_unlock(&g_sound_mutex);
+}
+
+/* Release-event callbacks only enqueue a request. OpenSL calls run on this
+   worker, never on the game's render/release callback. */
+static void request_perfect_sound(void) {
+    g_sound_requests.fetch_add(1, std::memory_order_release);
+}
+static void *sound_worker(void *) {
+    for (;;) {
+        const uint32_t requests = g_sound_requests.exchange(0, std::memory_order_acq_rel);
+        if (requests) play_perfect_sound_now();
+        struct timespec pause{0, 10000000L};
+        nanosleep(&pause, nullptr);
+    }
+    return nullptr;
 }
 
 static float clamp_progress(float raw, float reference) {
@@ -766,7 +783,7 @@ static void release_event_proxy(void *actor, int32_t timing, float arg0, float a
             store_float(g_perfect_raw_reference_bits,
                 old_reference * 0.80f + raw_before * 0.20f);
         }
-        play_perfect_sound();
+        request_perfect_sound();
     }
 }
 
@@ -988,7 +1005,13 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
 
     store_float(g_perfect_raw_reference_bits, kPerfectRawInitial);
     const bool sound_ready = initialize_sound();
-    LOGI("v49 Green Giant audio init=%s code=%d", sound_ready ? "ready" : "unavailable", g_sound_init_code.load());
+    if (sound_ready) {
+        pthread_t sound_thread;
+        if (pthread_create(&sound_thread, nullptr, sound_worker, nullptr) == 0)
+            pthread_detach(sound_thread);
+        else g_sound_init_code.store(-2002, std::memory_order_release);
+    }
+    LOGI("v49 embedded Green Giant audio init=%s code=%d", sound_ready ? "ready" : "unavailable", g_sound_init_code.load());
     g_init_state.store(2, std::memory_order_release);
     write_diagnostic();
     pthread_t thread;
