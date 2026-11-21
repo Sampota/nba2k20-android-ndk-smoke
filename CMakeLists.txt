@@ -512,7 +512,7 @@ set(_shotmeter_dobby_v48_agent_map
 file(WRITE "${_shotmeter_dobby_v48_agent_map}"
     "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
 add_library(shotmeter_dobby_v48_progressive_agent SHARED
-    src/shotmeter_dobby_v47_crescent_perfect_meter.cpp)
+    src/shotmeter_dobby_v48_progressive_perfect_meter.cpp)
 target_link_libraries(shotmeter_dobby_v48_progressive_agent PRIVATE
     dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
 target_compile_features(shotmeter_dobby_v48_progressive_agent PRIVATE cxx_std_17)
