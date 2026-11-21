@@ -312,11 +312,8 @@ static bool init_horn_gl(void) {
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &oldTexture);
 
     GLuint vs = compile_horn_shader(GL_VERTEX_SHADER, kHornVS);
-    GLuint fs = compile_horn_shader(GL_FRAGMENT_SHADER,
-        "#define HORN_SHADOW 0\n");
-    if (fs) glDeleteShader(fs);
-    const char *fragmentSources[] = {"#define HORN_SHADOW 0\n", kHornFS};
-    fs = glCreateShader(GL_FRAGMENT_SHADER);
+    const char *fragmentSources[] = {"#define HORN_SHADOW 0\\n", kHornFS};
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
     if (fs) {
         glShaderSource(fs, 2, fragmentSources, nullptr);
         glCompileShader(fs);
