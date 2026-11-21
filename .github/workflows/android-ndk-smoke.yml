@@ -95,7 +95,7 @@ jobs:
           DOBBY_AGENT_V47="build-android/libshotmeter-v47.so"
           DOBBY_AGENT_V48="build-android/libshotmeter-v48.so"
           DOBBY_AGENT_V49="build-android/libshotmeter-v49.so"
-          DOBBY_AGENT_V50="build-android/libshotmeter-v50.so"
+          DOBBY_AGENT_V50="build-android/libshotmeter-v50r1.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
@@ -219,10 +219,12 @@ jobs:
           strings "$DOBBY_AGENT_V49" | grep -F 'shotmeter.dobby-v49-smooth-opengles-horn-diagnostic'
           strings "$DOBBY_AGENT_V49" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
           strings "$DOBBY_AGENT_V49" | grep -F 'Green Giant'
-          strings "$DOBBY_AGENT_V50" | grep -F 'shotmeter.dobby-v50-render-probability-diagnostic'
-          strings "$DOBBY_AGENT_V50" | grep -F '_Z17MVS_ReleaseJumperP8AI_ACTOR'
-          strings "$DOBBY_AGENT_V50" | grep -F '_Z30PHY_LaunchShotBalancedDiceRollP8AI_ACTORP7AI_BALLif5_bool19PHY_SHOT_TRAJECTORY23MVS_SHOT_RELEASE_TIMING'
-          strings "$DOBBY_AGENT_V50" | grep -F '_Z34Phy_DetermineShotSimulationOutcomefP12AI_NBA_ACTORj'
+          strings "$DOBBY_AGENT_V50" | grep -F 'shotmeter.dobby-v50r1-audited-diagnostic'
+          strings "$DOBBY_AGENT_V50" | grep -F 'agent=v50.1'
+          strings "$DOBBY_AGENT_V50" | grep -F 'probability_hooks_enabled=0'
+          strings "$DOBBY_AGENT_V50" | grep -F 'eglSwapBuffers'
+          strings "$DOBBY_AGENT_V50" | grep -F 'Green Giant'
+          strings "$DOBBY_AGENT_V50" | grep -F 'Dobby'
           strings "$DOBBY_AGENT_V47" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
           strings "$DOBBY_AGENT_V47" | grep -F 'perfect_class3_release_events'
           strings "$DOBBY_AGENT_V47" | grep -F 'OpenSLES'
@@ -364,6 +366,6 @@ jobs:
       - name: Upload single-file Dobby v50 render and shot probability agent
         uses: actions/upload-artifact@v4
         with:
-          name: shotmeter-dobby-v50-render-probability-arm64
-          path: build-android/artifacts/arm64-v8a/libshotmeter-v50.so
+          name: shotmeter-dobby-v50r1-audited-opengles-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter-v50r1.so
           if-no-files-found: error
