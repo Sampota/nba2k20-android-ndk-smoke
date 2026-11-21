@@ -554,9 +554,9 @@ set_target_properties(shotmeter_dobby_v49_smooth_horn_agent PROPERTIES
     VISIBILITY_INLINES_HIDDEN YES)
 
 
-# v50 fixes the shader portability/initialization path, records EGL/GL diagnostics,
-# and applies timing-class make targets only inside the tracked player's normal
-# MVS_ReleaseJumper path after the stock outcome function is verified.
+# v50.1 fixes the copied v49 diagnostic identity and samples EGL/GL state on
+# ordinary swap frames, not only while the meter is active. Probability hooks are
+# deliberately disabled until function ABI and outcome flags are verified by disassembly.
 set(_shotmeter_dobby_v50_agent_map
     "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v50.map.txt")
 file(WRITE "${_shotmeter_dobby_v50_agent_map}"
@@ -574,6 +574,6 @@ target_link_options(shotmeter_dobby_v50_render_probability_agent PRIVATE
     -Wl,--gc-sections
     "-Wl,--version-script=${_shotmeter_dobby_v50_agent_map}")
 set_target_properties(shotmeter_dobby_v50_render_probability_agent PROPERTIES
-    OUTPUT_NAME "shotmeter-v50"
+    OUTPUT_NAME "shotmeter-v50r1"
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES)
