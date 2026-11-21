@@ -322,10 +322,9 @@ static bool init_horn_gl(void) {
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &oldTexture);
 
     GLuint vs = compile_horn_shader(GL_VERTEX_SHADER, kHornVS);
-    const char *fragmentSources[] = {"#define HORN_SHADOW 0\n", kHornFS};
     GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
     if (fs) {
-        glShaderSource(fs, 2, fragmentSources, nullptr);
+        glShaderSource(fs, 1, &kHornFS, nullptr);
         glCompileShader(fs);
         GLint compiled = GL_FALSE;
         glGetShaderiv(fs, GL_COMPILE_STATUS, &compiled);
@@ -861,7 +860,7 @@ static void write_diagnostic(void) {
     else status = "HOOKS_READY_WAITING_FOR_FRAMES";
 
     const bool perfect_active = monotonic_ns() <= g_perfect_until_ns.load();
-    char body[3072];
+    char body[4096];
     (void)snprintf(body, sizeof(body),
         "agent=v49\npurpose=player_anchored_smooth_opengles_horn\nengine=Dobby\n"
         "engine_commit=5dfc8546954ce3b3198132ab13fddb89ee92cdd7\n"
