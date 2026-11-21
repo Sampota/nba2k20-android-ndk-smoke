@@ -84,6 +84,13 @@ static std::atomic<uint32_t> g_anchor_valid{0};
 static std::atomic<uint32_t> g_anchor_x_bits{0}, g_anchor_y_bits{0};
 static std::atomic<uint32_t> g_anchor_z_bits{0}, g_clip_w_bits{0};
 static std::atomic<uint32_t> g_meter_bits{0}, g_marker_bits{0};
+static std::atomic<uint32_t> g_component_animation_bits{0}, g_component_release_value_bits{0};
+static std::atomic<int32_t> g_component_timing_enum{-1};
+static std::atomic<uint32_t> g_release_raw_bits{0}, g_release_animation_bits{0};
+static std::atomic<uint32_t> g_release_value_bits{0}, g_release_arg0_bits{0}, g_release_arg1_bits{0};
+static std::atomic<uint32_t> g_release_position_bits{0}, g_perfect_raw_reference_bits{0};
+static std::atomic<int32_t> g_release_pre_state{-1}, g_release_pre_timing_enum{-1};
+static std::atomic<uint32_t> g_eligible_local_release_events{0};
 static std::atomic<int32_t> g_component_state{-1};
 static std::atomic<uint32_t> g_tracked_player{0};
 static std::atomic<int32_t> g_surface_w{0}, g_surface_h{0};
@@ -185,7 +192,8 @@ static void do_draw_proxy(void *component, void *actor) {
 static constexpr float kHornAngBot = 1.1135f;
 static constexpr float kHornAngTop = -0.9931f;
 static constexpr float kHornWinLo = 0.900f;
-static constexpr float kProgressScale = 4.0f; // v47 observation: raw 0.25 at a class-3 release.
+static constexpr float kPerfectRawInitial = 0.25f; // observed on the v48 class-3 diagnostic.
+static constexpr float kPerfectFillTarget = 0.945f; // inside the reduced Excellent cap zone.
 
 static const char kHornVS[] = R"(
 attribute vec2 aPos;
@@ -247,6 +255,8 @@ void main() {
 
     float cap = cov(uDirCap.x * v.y - uDirCap.y * v.x) * body;
     col = mix(col, mix(vec3(0.25, 0.90, 0.20), uTint, uFlash), cap);
+    float whiteRim = max(0.0, a - cov(d + 1.6));
+    col = mix(col, vec3(0.96, 0.98, 1.0), whiteRim * 0.92);
 
     float baseA = (a + sh * (1.0 - a)) * uAlpha;
     vec3 rgb = col * baseA;
@@ -312,7 +322,7 @@ static bool init_horn_gl(void) {
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &oldTexture);
 
     GLuint vs = compile_horn_shader(GL_VERTEX_SHADER, kHornVS);
-    const char *fragmentSources[] = {"#define HORN_SHADOW 0\\n", kHornFS};
+    const char *fragmentSources[] = {"#define HORN_SHADOW 0\n", kHornFS};
     GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
     if (fs) {
         glShaderSource(fs, 2, fragmentSources, nullptr);
@@ -694,29 +704,69 @@ static void play_perfect_sound(void) {
     pthread_mutex_unlock(&g_sound_mutex);
 }
 
+static float clamp_progress(float raw, float reference) {
+    if (!std::isfinite(raw)) return 0.0f;
+    if (!std::isfinite(reference) || reference <= 0.001f)
+        reference = kPerfectRawInitial;
+    return std::max(0.0f, std::min(1.0f,
+        (raw / reference) * kPerfectFillTarget));
+}
+
 __attribute__((noinline))
 static void release_event_proxy(void *actor, int32_t timing, float arg0, float arg1) {
-    (void)arg0;
-    (void)arg1;
+    /* Snapshot the live component BEFORE forwarding. The stock event dispatcher can
+       synchronously transition state 2 into released/feedback states. */
+    const uintptr_t tracked_before = g_component
+        ? *reinterpret_cast<volatile uintptr_t *>(g_component + 0x08) : 0;
+    const int32_t state_before = g_component
+        ? *reinterpret_cast<volatile int32_t *>(g_component + 0x18) : -1;
+    const float raw_before = g_component
+        ? *reinterpret_cast<volatile float *>(g_component + 0x10) : NAN;
+    const float animation_before = g_component
+        ? *reinterpret_cast<volatile float *>(g_component + 0x14) : NAN;
+    const int32_t component_timing_before = g_component
+        ? *reinterpret_cast<volatile int32_t *>(g_component + 0x1c) : -1;
+    const float release_value_before = g_component
+        ? *reinterpret_cast<volatile float *>(g_component + 0x20) : NAN;
+
     const ReleaseFn original = g_original_release_event;
     if (original) original(actor, timing, arg0, arg1);
+
     g_release_event_calls.fetch_add(1, std::memory_order_relaxed);
     g_last_release_timing.store(timing, std::memory_order_relaxed);
-    /* The release event gets the HUR classifier's class directly; class 3 is
-       the standard jumpshot's stock Excellent/special-feedback class. */
-    if (!g_component || !actor || timing < 1 || timing > 5) return;
-    const uintptr_t tracked = *reinterpret_cast<volatile uintptr_t *>(g_component + 0x08);
-    if (tracked == 0 || reinterpret_cast<uintptr_t>(actor) != tracked) return;
-    const float raw = *reinterpret_cast<volatile float *>(g_component + 0x10);
-    const float finalProgress = std::isfinite(raw)
-        ? std::max(0.0f, std::min(1.0f, raw * kProgressScale)) : 0.0f;
-    store_float(g_result_raw_bits, timing == 3 ? 1.0f : finalProgress);
+    g_release_pre_state.store(state_before, std::memory_order_relaxed);
+    g_release_pre_timing_enum.store(component_timing_before, std::memory_order_relaxed);
+    store_float(g_release_arg0_bits, arg0);
+    store_float(g_release_arg1_bits, arg1);
+
+    /* Only the tracked player's live normal jumpshot state is eligible. This
+       rejects scripted/special/other-player event paths without guessing timing. */
+    if (!actor || !tracked_before ||
+        reinterpret_cast<uintptr_t>(actor) != tracked_before ||
+        state_before != 2 || timing < 1 || timing > 5) return;
+
+    g_eligible_local_release_events.fetch_add(1, std::memory_order_relaxed);
+    const float reference = load_float(g_perfect_raw_reference_bits);
+    const float result_position = clamp_progress(raw_before, reference);
+    store_float(g_release_raw_bits, raw_before);
+    store_float(g_release_animation_bits, animation_before);
+    store_float(g_release_value_bits, release_value_before);
+    store_float(g_release_position_bits, result_position);
+    store_float(g_result_raw_bits, result_position);
     g_result_timing.store(timing, std::memory_order_release);
     g_result_until_ns.store(monotonic_ns() + 1000000000ULL, std::memory_order_release);
     g_result_sequence.fetch_add(1, std::memory_order_acq_rel);
+
     if (timing == 3) {
         g_perfect_release_events.fetch_add(1, std::memory_order_relaxed);
         g_perfect_until_ns.store(monotonic_ns() + 650000000ULL, std::memory_order_release);
+        /* Calibrate subsequent shots only. This release stays frozen at the
+           position computed with the previous reference; no perfect-fill snap. */
+        if (std::isfinite(raw_before) && raw_before > 0.001f && raw_before < 1.0f) {
+            const float old_reference = reference > 0.001f ? reference : kPerfectRawInitial;
+            store_float(g_perfect_raw_reference_bits,
+                old_reference * 0.80f + raw_before * 0.20f);
+        }
         play_perfect_sound();
     }
 }
@@ -725,10 +775,16 @@ static void draw_overlay(EGLDisplay display, EGLSurface surface) {
     if (!g_component || g_anchor_valid.load(std::memory_order_acquire) == 0) return;
     const uintptr_t tracked = *reinterpret_cast<volatile uintptr_t *>(g_component + 0x08);
     const float raw = *reinterpret_cast<volatile float *>(g_component + 0x10);
+    const float animation = *reinterpret_cast<volatile float *>(g_component + 0x14);
     const int32_t state = *reinterpret_cast<volatile int32_t *>(g_component + 0x18);
+    const int32_t component_timing = *reinterpret_cast<volatile int32_t *>(g_component + 0x1c);
+    const float release_value = *reinterpret_cast<volatile float *>(g_component + 0x20);
     g_component_state.store(state, std::memory_order_relaxed);
     g_tracked_player.store(tracked ? 1U : 0U, std::memory_order_relaxed);
     store_float(g_meter_bits, raw);
+    store_float(g_component_animation_bits, animation);
+    store_float(g_component_release_value_bits, release_value);
+    g_component_timing_enum.store(component_timing, std::memory_order_relaxed);
 
     const uint64_t now = monotonic_ns();
     const bool resultActive = tracked != 0 &&
@@ -741,8 +797,7 @@ static void draw_overlay(EGLDisplay display, EGLSurface surface) {
 
     float progress = resultActive
         ? load_float(g_result_raw_bits)
-        : (std::isfinite(raw) ? std::max(0.0f, std::min(1.0f, raw * kProgressScale)) : 0.0f);
-    if (resultActive && resultTiming == 3) progress = 1.0f;
+        : clamp_progress(raw, load_float(g_perfect_raw_reference_bits));
     store_float(g_marker_bits, progress);
     if (meterActive) g_active_meter_frames.fetch_add(1, std::memory_order_relaxed);
     if (perfect) g_perfect_flash_frames.fetch_add(1, std::memory_order_relaxed);
@@ -821,7 +876,13 @@ static void write_diagnostic(void) {
         "last_anchor_y=%.8g\nlast_anchor_z=%.8g\nlast_reciprocal_clip_w=%.8g\n"
         "anchor_valid=%u\negl_swap_callbacks=%u\nactive_meter_frames=%u\n"
         "overlay_draw_calls=%u\nlast_component_state=%d\nlast_tracked_player_present=%u\n"
-        "last_meter_value=%.7g\\nlast_meter_position=%.7g\\nprogress_mapping_scale=4\\n"
+        "last_meter_value=%.7g\nlast_meter_position=%.7g\n"
+        "component_animation_progress=%.7g\ncomponent_timing_enum=%d\n"
+        "component_release_value=%.7g\nperfect_raw_reference=%.7g\n"
+        "last_release_raw=%.7g\nlast_release_animation=%.7g\n"
+        "last_release_value=%.7g\nlast_release_position=%.7g\n"
+        "release_pre_state=%d\nrelease_pre_component_timing=%d\n"
+        "release_arg0=%.7g\nrelease_arg1=%.7g\neligible_local_release_events=%u\n"
         "shader_init_code=%d\\nresult_timing_enum=%d\\nresult_sequence=%u\\n"
         "release_event_callbacks=%u\\nlast_release_timing_class=%d\\nperfect_class3_release_events=%u\\n"
         "perfect_flash_active=%u\\nperfect_flash_frames=%u\\nsound_init_code=%d\\n"
@@ -842,7 +903,14 @@ static void write_diagnostic(void) {
         load_float(g_anchor_z_bits), load_float(g_clip_w_bits), g_anchor_valid.load(),
         g_swap_calls.load(), g_active_meter_frames.load(), g_draw_calls.load(),
         g_component_state.load(), g_tracked_player.load(), load_float(g_meter_bits),
-        load_float(g_marker_bits), g_shader_init_code.load(), g_result_timing.load(),
+        load_float(g_marker_bits), load_float(g_component_animation_bits),
+        g_component_timing_enum.load(), load_float(g_component_release_value_bits),
+        load_float(g_perfect_raw_reference_bits), load_float(g_release_raw_bits),
+        load_float(g_release_animation_bits), load_float(g_release_value_bits),
+        load_float(g_release_position_bits), g_release_pre_state.load(),
+        g_release_pre_timing_enum.load(), load_float(g_release_arg0_bits),
+        load_float(g_release_arg1_bits), g_eligible_local_release_events.load(),
+        g_shader_init_code.load(), g_result_timing.load(),
         g_result_sequence.load(), g_release_event_calls.load(),
         g_last_release_timing.load(), g_perfect_release_events.load(),
         perfect_active ? 1U : 0U, g_perfect_flash_frames.load(),
@@ -919,6 +987,7 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
         g_swap_code = -1001;
     }
 
+    store_float(g_perfect_raw_reference_bits, kPerfectRawInitial);
     const bool sound_ready = initialize_sound();
     LOGI("v49 Green Giant audio init=%s code=%d", sound_ready ? "ready" : "unavailable", g_sound_init_code.load());
     g_init_state.store(2, std::memory_order_release);
