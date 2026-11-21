@@ -216,7 +216,7 @@ jobs:
           strings "$DOBBY_AGENT_V48" | grep -F 'perfect_class3_release_events'
           strings "$DOBBY_AGENT_V49" | grep -F 'shotmeter.dobby-v49-smooth-opengles-horn-diagnostic'
           strings "$DOBBY_AGENT_V49" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
-          strings "$DOBBY_AGENT_V49" | grep -F 'GreenGiant'
+          strings "$DOBBY_AGENT_V49" | grep -F 'Green Giant'
           strings "$DOBBY_AGENT_V47" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
           strings "$DOBBY_AGENT_V47" | grep -F 'perfect_class3_release_events'
           strings "$DOBBY_AGENT_V47" | grep -F 'OpenSLES'
