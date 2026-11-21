@@ -25,7 +25,7 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define FILES_DIR "/data/user/0/com.t2ksports.nba2k20and/files"
-#define DIAG_NAME "shotmeter.dobby-v47-crescent-perfect-diagnostic"
+#define DIAG_NAME "shotmeter.dobby-v48-progressive-perfect-diagnostic"
 
 static constexpr uintptr_t kManagerOffset = 0x3c700e0ULL;
 static constexpr uintptr_t kSavedViewOffset = 0x90ULL;
@@ -354,7 +354,11 @@ static void draw_crescent_meter(GLint anchor_x, GLint anchor_y, GLint viewport_h
         const float inner_half = crescent_half_width(t, half_width) - 1.5f;
         if (inner_half < 0.65f) continue;
         const GLint half = std::max(1, static_cast<GLint>(std::lround(inner_half)));
-        if (perfect) {
+        const float marker_t = 1.0f - std::max(0.0f, std::min(1.0f, progress));
+        const bool filled = perfect || t >= marker_t;
+        if (!filled) {
+            clear_rect(x - half, y - 2, half * 2 + 1, 4, 0.10f, 0.12f, 0.14f);
+        } else if (perfect) {
             clear_rect(x - half, y - 2, half * 2 + 1, 4, 0.04f, green, 0.12f);
         } else if (t <= 0.13f) {
             clear_rect(x - half, y - 2, half * 2 + 1, 4, 0.05f, 0.92f, 0.22f);
@@ -404,8 +408,9 @@ static void draw_overlay(EGLDisplay display, EGLSurface surface) {
         now <= g_perfect_until_ns.load(std::memory_order_acquire);
     const bool meter_active = tracked && state == 2 && std::isfinite(raw);
     if (!tracked || (!meter_active && !perfect)) return;
-    const float progress = std::isfinite(raw)
-        ? std::max(0.0f, std::min(1.0f, raw * 2.0f)) : 0.0f;
+    /* A confirmed class-3 release overrides the transient raw value. */
+    const float progress = perfect ? 1.0f : (std::isfinite(raw)
+        ? std::max(0.0f, std::min(1.0f, raw * 2.0f)) : 0.0f);
     store_float(g_marker_bits, progress);
     if (meter_active) g_active_meter_frames.fetch_add(1, std::memory_order_relaxed);
     if (perfect) g_perfect_flash_frames.fetch_add(1, std::memory_order_relaxed);
@@ -480,7 +485,7 @@ static void write_diagnostic(void) {
     const bool perfect_active = monotonic_ns() <= g_perfect_until_ns.load();
     char body[3072];
     (void)snprintf(body, sizeof(body),
-        "agent=v47\npurpose=player_anchored_crescent_meter_perfect_feedback\nengine=Dobby\n"
+        "agent=v48\npurpose=player_anchored_progressive_crescent_perfect_feedback\nengine=Dobby\n"
         "engine_commit=5dfc8546954ce3b3198132ab13fddb89ee92cdd7\n"
         "target_library=%s\ncomponent_symbol=%s\ncomponent_address=%p\n"
         "do_draw_address=%p\ndo_draw_hook_code=%d\nhead_location_address=%p\n"
@@ -590,13 +595,13 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
     }
 
     const bool sound_ready = initialize_sound();
-    LOGI("v47 perfect-shot sound init=%s code=%d", sound_ready ? "ready" : "unavailable", g_sound_init_code.load());
+    LOGI("v48 perfect-shot sound init=%s code=%d", sound_ready ? "ready" : "unavailable", g_sound_init_code.load());
     g_init_state.store(2, std::memory_order_release);
     write_diagnostic();
     pthread_t thread;
     if (pthread_create(&thread, nullptr, reporter, nullptr) == 0) pthread_detach(thread);
     else LOGE("diagnostic reporter thread creation failed");
-    LOGI("v47 crescent meter attached; class-3 player release triggers green flash and optional tone");
+    LOGI("v48 progressive crescent meter attached; class-3 player release triggers green flash and optional tone");
     return JNI_OK;
 }
 extern "C" JNIEXPORT void JNICALL Agent_OnUnload(JavaVM *) {
