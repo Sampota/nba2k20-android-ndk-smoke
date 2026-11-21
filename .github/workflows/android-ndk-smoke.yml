@@ -2,7 +2,7 @@ name: Android NDK ARM64 smoke test and read-only capture probe
 
 on:
   push:
-    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant ]
+    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn ]
   workflow_dispatch:
 
 jobs:
@@ -94,6 +94,7 @@ jobs:
           DOBBY_AGENT_V46="build-android/libshotmeter-v46.so"
           DOBBY_AGENT_V47="build-android/libshotmeter-v47.so"
           DOBBY_AGENT_V48="build-android/libshotmeter-v48.so"
+          DOBBY_AGENT_V49="build-android/libshotmeter-v49.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
@@ -110,10 +111,11 @@ jobs:
           test -s "$DOBBY_AGENT_V46"
           test -s "$DOBBY_AGENT_V47"
           test -s "$DOBBY_AGENT_V48"
+          test -s "$DOBBY_AGENT_V49"
           test -n "$SHADOWHOOK"
           test -s "$SHADOWHOOK"
 
-          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$SHADOWHOOK"; do
+          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$SHADOWHOOK"; do
             echo "=== $LIB ==="
             file "$LIB"
             readelf -h "$LIB" | grep -E 'Class:|Machine:'
@@ -129,7 +131,7 @@ jobs:
             echo "Single-file ShadowHook agent unexpectedly depends on libshadowhook.so" >&2
             exit 1
           fi
-          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
+          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
             echo "Dobby diagnostic agent unexpectedly has a separate hook-engine or shared C++ dependency" >&2
             exit 1
           fi
@@ -163,6 +165,8 @@ jobs:
           readelf --dyn-syms --wide "$DOBBY_AGENT_V47" | grep -F 'Agent_OnUnload'
           readelf --dyn-syms --wide "$DOBBY_AGENT_V48" | grep -F 'Agent_OnAttach'
           readelf --dyn-syms --wide "$DOBBY_AGENT_V48" | grep -F 'Agent_OnUnload'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V49" | grep -F 'Agent_OnAttach'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V49" | grep -F 'Agent_OnUnload'
           strings "$DOBBY_AGENT" | grep -F 'shotmeter.dobby-diagnostic'
           strings "$DOBBY_AGENT" | grep -F 'Dobby'
           strings "$DOBBY_AGENT_V39" | grep -F 'shotmeter.dobby-v39-diagnostic'
@@ -210,6 +214,9 @@ jobs:
           strings "$DOBBY_AGENT_V47" | grep -F 'shotmeter.dobby-v47-crescent-perfect-diagnostic'
           strings "$DOBBY_AGENT_V48" | grep -F 'shotmeter.dobby-v48-progressive-perfect-diagnostic'
           strings "$DOBBY_AGENT_V48" | grep -F 'perfect_class3_release_events'
+          strings "$DOBBY_AGENT_V49" | grep -F 'shotmeter.dobby-v49-smooth-opengles-horn-diagnostic'
+          strings "$DOBBY_AGENT_V49" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
+          strings "$DOBBY_AGENT_V49" | grep -F 'GreenGiant'
           strings "$DOBBY_AGENT_V47" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
           strings "$DOBBY_AGENT_V47" | grep -F 'perfect_class3_release_events'
           strings "$DOBBY_AGENT_V47" | grep -F 'OpenSLES'
@@ -234,6 +241,7 @@ jobs:
           cp "$DOBBY_AGENT_V46" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V47" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V48" build-android/artifacts/arm64-v8a/
+          cp "$DOBBY_AGENT_V49" build-android/artifacts/arm64-v8a/
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Upload Android ARM64 smoke-test artifact
@@ -338,4 +346,10 @@ jobs:
         with:
           name: shotmeter-dobby-v48-progressive-perfect-green-giant-arm64
           path: build-android/artifacts/arm64-v8a/libshotmeter-v48.so
+          if-no-files-found: error
+      - name: Upload single-file Dobby v49 smooth OpenGL ES horn meter
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-dobby-v49-smooth-opengles-horn-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter-v49.so
           if-no-files-found: error
