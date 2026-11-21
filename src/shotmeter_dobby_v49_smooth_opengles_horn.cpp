@@ -324,7 +324,8 @@ static bool init_horn_gl(void) {
     GLuint vs = compile_horn_shader(GL_VERTEX_SHADER, kHornVS);
     GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
     if (fs) {
-        glShaderSource(fs, 1, &kHornFS, nullptr);
+        const char *fragmentSource = kHornFS;
+        glShaderSource(fs, 1, &fragmentSource, nullptr);
         glCompileShader(fs);
         GLint compiled = GL_FALSE;
         glGetShaderiv(fs, GL_COMPILE_STATUS, &compiled);
