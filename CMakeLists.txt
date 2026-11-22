@@ -740,3 +740,26 @@ set_target_properties(shotmeter_dobby_v57_glsl_fire_region_agent PROPERTIES
     OUTPUT_NAME "shotmeter-v57"
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES)
+
+
+# v58 moves the meter left of the player/banner and raises/enlarges the flame.
+set(_shotmeter_dobby_v58_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v58.map.txt")
+file(WRITE "${_shotmeter_dobby_v58_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v58_left_meter_fire_agent
+    SHARED src/shotmeter_dobby_v58_left_meter_raised_fire.cpp)
+target_link_libraries(shotmeter_dobby_v58_left_meter_fire_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+target_compile_features(shotmeter_dobby_v58_left_meter_fire_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v58_left_meter_fire_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v58_left_meter_fire_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v58_agent_map}")
+set_target_properties(shotmeter_dobby_v58_left_meter_fire_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v58"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
