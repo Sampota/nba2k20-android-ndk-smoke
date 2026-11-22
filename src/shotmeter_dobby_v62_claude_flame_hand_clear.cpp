@@ -1259,7 +1259,7 @@ static void draw_horn(int surfaceW, int surfaceH, int anchorX, int anchorY,
     (void)capture_gl_error(191); // GL state-query checkpoint
 
     const float scale = (160.0f * std::max(0.72f, std::min(1.35f, surfaceH / 720.0f))) / 319.0f;
-    /* Keep the v50-v53 base placement and apply only the requested small nudge. */
+    /* Retain the v50-v53 anchor math, but shift farther right to clear the shooting hand. */
     const float meterShiftX = 38.0f * scale;
     const float meterShiftDown = 0.5f * scale;
     const float bx = anchorX + 43.0f*scale - 123.5f*scale + meterShiftX;
@@ -1919,7 +1919,7 @@ static void write_diagnostic(void) {
     snprintf(glShaderLog, sizeof(glShaderLog), "%s", g_gl_shader_log);
     pthread_mutex_unlock(&g_gl_diag_mutex);
     (void)snprintf(body, sizeof(body),
-        "agent=v62\npurpose=right_side_meter_with_top_aligned_feedback_panel\n"
+        "agent=v62\npurpose=hand_clear_meter_with_top_aligned_feedback_and_claude_flame\n"
         "banner_renderer=CLAUDE_SDF_NEON_PANEL\nbanner_animation=WIPE_UP_BOTTOM_TO_TOP\nperfect_effect=CLAUDE_WISPY_NOISE_GREEN_FLAME\nperfect_flame_box_scale=0.70_OF_CLAUDE_DEFAULT\nperfect_meter_color=FULL_METER_GREEN_UNTIL_RESULT_FADE\nperfect_fire_render_path=SEPARATE_HEAD_ANCHORED_NOISE_SHADER\nmeter_shift_design=38.0_right\nmeter_shift_down_design=0.5\nfeedback_gap_design=8.0\n"
         "banner_timing_source=GAME_RELEASE_ENUM\nengine=Dobby\n"
         "engine_commit=5dfc8546954ce3b3198132ab13fddb89ee92cdd7\n"
