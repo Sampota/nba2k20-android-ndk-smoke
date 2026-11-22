@@ -132,8 +132,6 @@ static std::atomic<uint32_t> g_gl_error_count{0}, g_gl_draw_error_count{0};
 static std::atomic<uint32_t> g_gl_pre_overlay_error_count{0};
 static std::atomic<uint32_t> g_perfect_fire_trigger_count{0}, g_perfect_fire_draw_calls{0};
 static std::atomic<uint32_t> g_perfect_fire_frames{0}, g_perfect_fire_active{0};
-static std::atomic<uint32_t> g_perfect_fire_trigger_count{0}, g_perfect_fire_draw_calls{0};
-static std::atomic<uint32_t> g_perfect_fire_frames{0}, g_perfect_fire_active{0};
 static std::atomic<int32_t> g_gl_vertex_status{-1}, g_gl_fragment_status{-1}, g_gl_link_status{-1};
 static std::atomic<int32_t> g_gl_draw_error_code{-1};
 static std::atomic<uint32_t> g_gl_init_attempts{0};
