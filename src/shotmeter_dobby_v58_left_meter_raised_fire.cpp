@@ -24,11 +24,11 @@
 #include "greengiant_ima_b64.h"
 #include "../Files/horn_font_atlas.h"
 
-#define LOG_TAG "ShotmeterDobbyV58"
+#define LOG_TAG "ShotmeterDobbyV59"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define FILES_DIR "/data/user/0/com.t2ksports.nba2k20and/files"
-#define DIAG_NAME "shotmeter.dobby-v58-independent-meter-fire-pass"
+#define DIAG_NAME "shotmeter.dobby-v59-meter-right-of-player"
 
 static constexpr uintptr_t kManagerOffset = 0x3c700e0ULL;
 static constexpr uintptr_t kSavedViewOffset = 0x90ULL;
@@ -1024,7 +1024,7 @@ static void draw_horn(int surfaceW, int surfaceH, int anchorX, int anchorY,
     const float scale = (160.0f * std::max(0.72f, std::min(1.35f, surfaceH / 720.0f))) / 319.0f;
     /* Place the meter to the player's right. Clamp its viewport to the
        surface so wide aspect ratios and edge-of-screen players remain safe. */
-    const float desiredMeterBx = anchorX - (200.0f + 80.5f) * scale;
+    const float desiredMeterBx = anchorX + (200.0f + 80.5f) * scale;
     const float meterVw = ceilf(187.0f * scale) + 1.0f;
     const float minMeterBx = -60.0f * scale;
     const float maxMeterBx = static_cast<float>(surfaceW) - meterVw - 60.0f * scale;
@@ -1692,8 +1692,8 @@ static void write_diagnostic(void) {
     snprintf(glShaderLog, sizeof(glShaderLog), "%s", g_gl_shader_log);
     pthread_mutex_unlock(&g_gl_diag_mutex);
     (void)snprintf(body, sizeof(body),
-        "agent=v58\npurpose=independent_meter_position_and_head_anchored_fire_pass\n"
-        "banner_renderer=CLAUDE_SDF_NEON_PANEL\nbanner_animation=WIPE_UP_BOTTOM_TO_TOP\nperfect_effect=PROCEDURAL_GREEN_FLAME_ABOVE_PLAYER_HEAD\nperfect_meter_color=FULL_METER_GREEN_UNTIL_RESULT_FADE\nperfect_fire_animation=UPWARD_FLICKER_AND_PARTICLE_LIKE_TONGUES\nperfect_fire_render_path=SEPARATE_HEAD_ANCHORED_DRAW_PASS\nmeter_anchor_offset_design=-200\n"
+        "agent=v59\npurpose=right_side_meter_clear_of_shooting_arm_with_head_anchored_fire_pass\n"
+        "banner_renderer=CLAUDE_SDF_NEON_PANEL\nbanner_animation=WIPE_UP_BOTTOM_TO_TOP\nperfect_effect=PROCEDURAL_GREEN_FLAME_ABOVE_PLAYER_HEAD\nperfect_meter_color=FULL_METER_GREEN_UNTIL_RESULT_FADE\nperfect_fire_animation=UPWARD_FLICKER_AND_PARTICLE_LIKE_TONGUES\nperfect_fire_render_path=SEPARATE_HEAD_ANCHORED_DRAW_PASS\nmeter_anchor_offset_design=+200\n"
         "banner_timing_source=GAME_RELEASE_ENUM\nengine=Dobby\n"
         "engine_commit=5dfc8546954ce3b3198132ab13fddb89ee92cdd7\n"
         "target_library=%s\ncomponent_symbol=%s\ncomponent_address=%p\n"
@@ -1894,13 +1894,13 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
             pthread_detach(sound_thread);
         else g_sound_init_code.store(-2002, std::memory_order_release);
     }
-    LOGI("v55 embedded Green Giant audio init=%s code=%d", sound_ready ? "ready" : "unavailable", g_sound_init_code.load());
+    LOGI("v59 embedded Green Giant audio init=%s code=%d", sound_ready ? "ready" : "unavailable", g_sound_init_code.load());
     g_init_state.store(2, std::memory_order_release);
     write_diagnostic();
     pthread_t thread;
     if (pthread_create(&thread, nullptr, reporter, nullptr) == 0) pthread_detach(thread);
     else LOGE("diagnostic reporter thread creation failed");
-    LOGI("v54 grade-aware probability agent attached; probability_hook_code=%d enabled=%u",
+    LOGI("v59 right-side meter agent attached; probability_hook_code=%d enabled=%u",
          g_probability_hook_code, g_probability_enabled.load());
     return JNI_OK;
 }
