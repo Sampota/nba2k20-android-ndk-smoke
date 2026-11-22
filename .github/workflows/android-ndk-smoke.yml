@@ -281,6 +281,7 @@ jobs:
           cp "$DOBBY_AGENT_V50" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V51" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V52" build-android/artifacts/arm64-v8a/
+          cp "$DOBBY_AGENT_V53" build-android/artifacts/arm64-v8a/
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Upload Android ARM64 smoke-test artifact
