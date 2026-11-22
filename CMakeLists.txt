@@ -785,3 +785,25 @@ set_target_properties(shotmeter_dobby_v59_meter_right_agent PROPERTIES
     OUTPUT_NAME "shotmeter-v59"
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES)
+
+# v61 nudges the meter right and moves the timing/quality panel alongside it.
+set(_shotmeter_dobby_v61_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v61.map.txt")
+file(WRITE "${_shotmeter_dobby_v61_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v61_meter_feedback_agent
+    SHARED src/shotmeter_dobby_v59_meter_right_of_player.cpp)
+target_link_libraries(shotmeter_dobby_v61_meter_feedback_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+target_compile_features(shotmeter_dobby_v61_meter_feedback_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v61_meter_feedback_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v61_meter_feedback_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v61_agent_map}")
+set_target_properties(shotmeter_dobby_v61_meter_feedback_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v61"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
