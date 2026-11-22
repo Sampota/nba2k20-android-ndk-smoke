@@ -431,7 +431,7 @@ void main() {
 
     // Procedural green flame anchored just above the projected player head.
     // The layered sine fields create upward flicker and independently moving tongues.
-    vec2 fq = vec2((p.x - 123.5) / 20.0, (p.y - 270.0) / 48.0);
+    vec2 fq = vec2((p.x - 80.5) / 20.0, (48.0 - p.y) / 48.0);
     float fy = clamp(fq.y, 0.0, 1.0);
     float flicker = 0.10 * sin(uTime * 17.0 + fq.y * 11.0)
                   + 0.06 * sin(uTime * 23.0 - fq.y * 18.0)
