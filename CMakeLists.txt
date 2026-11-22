@@ -577,3 +577,27 @@ set_target_properties(shotmeter_dobby_v50r1_audited_agent PROPERTIES
     OUTPUT_NAME "shotmeter-v50r1"
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES)
+
+
+# v51 applies grade-aware probability remapping only at the balanced-dice
+# simulation entry. The game's stored chance and HUD grade feedback remain intact.
+set(_shotmeter_dobby_v51_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v51.map.txt")
+file(WRITE "${_shotmeter_dobby_v51_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v51_grade_aware_agent
+    SHARED src/shotmeter_dobby_v51_grade_aware_probability.cpp)
+target_link_libraries(shotmeter_dobby_v51_grade_aware_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+target_compile_features(shotmeter_dobby_v51_grade_aware_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v51_grade_aware_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v51_grade_aware_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v51_agent_map}")
+set_target_properties(shotmeter_dobby_v51_grade_aware_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v51"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
