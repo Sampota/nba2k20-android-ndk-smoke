@@ -352,3 +352,252 @@ set_target_properties(shotmeter_dobby_v40_timing_agent PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+# v41 adds read-only observation of the native stock feedback visibility/draw path
+# and a reset marker handled by the long-lived diagnostic reporter.
+set(_shotmeter_dobby_v41_feedback_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v41-feedback.map.txt")
+file(WRITE "${_shotmeter_dobby_v41_feedback_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v41_feedback_agent SHARED
+    src/shotmeter_dobby_v41_feedback_agent.cpp)
+target_link_libraries(shotmeter_dobby_v41_feedback_agent PRIVATE dobby_static ${android_log} ${android_dl})
+target_compile_features(shotmeter_dobby_v41_feedback_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v41_feedback_agent PRIVATE -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v41_feedback_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v41_feedback_agent_map}")
+set_target_properties(shotmeter_dobby_v41_feedback_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v41"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
+
+# v42 draws an independent screen-space second shotmeter on the EGL backbuffer.
+# It reads the stock ShotIndicatorComponent progress field only; it does not
+# modify the component, its material/resource, or the original shot timing.
+find_library(android_egl EGL REQUIRED)
+find_library(android_glesv3 GLESv3 REQUIRED)
+find_library(android_opensles OpenSLES REQUIRED)
+set(_shotmeter_dobby_v42_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v42.map.txt")
+file(WRITE "${_shotmeter_dobby_v42_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v42_second_meter_agent SHARED
+    src/shotmeter_dobby_v42_second_meter.cpp)
+target_link_libraries(shotmeter_dobby_v42_second_meter_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3})
+target_compile_features(shotmeter_dobby_v42_second_meter_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v42_second_meter_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v42_second_meter_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v42_agent_map}")
+set_target_properties(shotmeter_dobby_v42_second_meter_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v42"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
+
+
+# v43 is a read-only player-anchor diagnostic. It captures the player's head
+# world position and projects it through the saved player-icon view from the
+# stock DoDraw callback. It does not draw or modify any game-owned state.
+set(_shotmeter_dobby_v43_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v43.map.txt")
+file(WRITE "${_shotmeter_dobby_v43_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v43_coordinate_agent SHARED
+    src/shotmeter_dobby_v43_coordinate_diagnostic.cpp)
+target_link_libraries(shotmeter_dobby_v43_coordinate_agent PRIVATE
+    dobby_static ${android_log} ${android_dl})
+target_compile_features(shotmeter_dobby_v43_coordinate_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v43_coordinate_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v43_coordinate_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v43_agent_map}")
+set_target_properties(shotmeter_dobby_v43_coordinate_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v43"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
+
+
+# v44 keeps the v43 read-only player-anchor diagnostic and makes Agent_OnAttach
+# idempotent. A second attach call in the same loaded ELF is counted and ignored,
+# so it cannot re-run the Dobby self-test or overwrite a successful hook state.
+set(_shotmeter_dobby_v44_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v44.map.txt")
+file(WRITE "${_shotmeter_dobby_v44_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v44_coordinate_agent
+    SHARED src/shotmeter_dobby_v44_coordinate_diagnostic.cpp)
+target_link_libraries(shotmeter_dobby_v44_coordinate_agent PRIVATE
+    dobby_static ${android_log} ${android_dl})
+target_compile_features(shotmeter_dobby_v44_coordinate_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v44_coordinate_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v44_coordinate_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v44_agent_map}")
+set_target_properties(shotmeter_dobby_v44_coordinate_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v44"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
+
+
+# v46 combines the validated v45 perspective player-head projection with the
+# v42 independent EGL overlay. The curved meter is drawn beside the live
+# projected head anchor; stock component and timing data remain read-only.
+set(_shotmeter_dobby_v46_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v46.map.txt")
+file(WRITE "${_shotmeter_dobby_v46_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v46_player_anchored_agent
+    SHARED src/shotmeter_dobby_v46_player_anchored_meter.cpp)
+target_link_libraries(shotmeter_dobby_v46_player_anchored_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3})
+target_compile_features(shotmeter_dobby_v46_player_anchored_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v46_player_anchored_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v46_player_anchored_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v46_agent_map}")
+set_target_properties(shotmeter_dobby_v46_player_anchored_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v46"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
+
+
+# v47 replaces the small circular strip with a tall tapered crescent meter.
+# Class 3 from EVT_UserShotReleased turns the whole crescent green, flashes
+# spark accents, and plays a short OpenSL ES confirmation tone. Game state,
+# timing, and the original meter remain read-only.
+set(_shotmeter_dobby_v47_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v47.map.txt")
+file(WRITE "${_shotmeter_dobby_v47_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v47_crescent_agent
+    SHARED src/shotmeter_dobby_v47_crescent_perfect_meter.cpp)
+target_link_libraries(shotmeter_dobby_v47_crescent_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+target_compile_features(shotmeter_dobby_v47_crescent_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v47_crescent_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v47_crescent_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v47_agent_map}")
+set_target_properties(shotmeter_dobby_v47_crescent_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v47"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
+
+# v48 progressive fill and full-green perfect-release feedback.
+set(_shotmeter_dobby_v48_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v48.map.txt")
+file(WRITE "${_shotmeter_dobby_v48_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v48_progressive_agent SHARED
+    src/shotmeter_dobby_v48_progressive_perfect_meter.cpp)
+target_link_libraries(shotmeter_dobby_v48_progressive_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+target_compile_features(shotmeter_dobby_v48_progressive_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v48_progressive_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v48_progressive_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v48_agent_map}")
+set_target_properties(shotmeter_dobby_v48_progressive_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v48"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
+
+ 
+# v49 combines the validated player anchor with the shader-rendered horn and
+# the embedded Green Giant feedback sound. It reuses the single EGL swap hook
+# installed by this agent; game state and stock timing remain read-only.
+set(_shotmeter_dobby_v49_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v49.map.txt")
+file(WRITE "${_shotmeter_dobby_v49_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v49_smooth_horn_agent
+    SHARED src/shotmeter_dobby_v49_smooth_opengles_horn.cpp)
+target_link_libraries(shotmeter_dobby_v49_smooth_horn_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+target_compile_features(shotmeter_dobby_v49_smooth_horn_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v49_smooth_horn_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v49_smooth_horn_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v49_agent_map}")
+set_target_properties(shotmeter_dobby_v49_smooth_horn_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v49"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
+
+
+# v50.1 fixes the copied v49 diagnostic identity and samples EGL/GL state on
+# ordinary swap frames, not only while the meter is active. Probability hooks are
+# deliberately disabled until function ABI and outcome flags are verified by disassembly.
+set(_shotmeter_dobby_v50r1_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v50r1.map.txt")
+file(WRITE "${_shotmeter_dobby_v50r1_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v50r1_audited_agent
+    SHARED src/shotmeter_dobby_v50_render_probability.cpp)
+target_link_libraries(shotmeter_dobby_v50r1_audited_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+target_compile_features(shotmeter_dobby_v50r1_audited_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v50r1_audited_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v50r1_audited_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v50r1_agent_map}")
+set_target_properties(shotmeter_dobby_v50r1_audited_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v50r1"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
+
+
+# v51 applies grade-aware probability remapping only at the balanced-dice
+# simulation entry. The game's stored chance and HUD grade feedback remain intact.
+set(_shotmeter_dobby_v51_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v51.map.txt")
+file(WRITE "${_shotmeter_dobby_v51_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; local: *; };")
+add_library(shotmeter_dobby_v51_grade_aware_agent
+    SHARED src/shotmeter_dobby_v51_grade_aware_probability.cpp)
+target_link_libraries(shotmeter_dobby_v51_grade_aware_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+target_compile_features(shotmeter_dobby_v51_grade_aware_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v51_grade_aware_agent PRIVATE
+    -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v51_grade_aware_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v51_agent_map}")
+set_target_properties(shotmeter_dobby_v51_grade_aware_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v51"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
