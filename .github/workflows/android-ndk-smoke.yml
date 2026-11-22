@@ -2,7 +2,7 @@ name: Android NDK ARM64 smoke test and read-only capture probe
 
 on:
   push:
-    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn, v50-render-probability-diagnostics ]
+    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn, v50-render-probability-diagnostics, v51-grade-aware-probability ]
   workflow_dispatch:
 
 jobs:
