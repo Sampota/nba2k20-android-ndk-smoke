@@ -1935,7 +1935,7 @@ static void write_diagnostic(void) {
     pthread_mutex_unlock(&g_gl_diag_mutex);
     (void)snprintf(body, sizeof(body),
         "agent=v63\npurpose=coordinate_corrected_meter_centered_flame_atomic_diagnostics\n"
-        "banner_renderer=CLAUDE_SDF_NEON_PANEL\nbanner_animation=WIPE_UP_BOTTOM_TO_TOP\nperfect_effect=CLAUDE_WISPY_NOISE_GREEN_FLAME\nperfect_flame_box_scale=0.70_OF_CLAUDE_DEFAULT\nperfect_meter_color=FULL_METER_GREEN_UNTIL_RESULT_FADE\nperfect_fire_render_path=SEPARATE_HEAD_ANCHORED_NOISE_SHADER\nmeter_shift_design=38.0_right\nmeter_shift_down_design=0.5\nfeedback_gap_design=8.0\n"
+        "banner_renderer=CLAUDE_SDF_NEON_PANEL\nbanner_animation=WIPE_UP_BOTTOM_TO_TOP\nperfect_effect=CLAUDE_WISPY_NOISE_GREEN_FLAME\nperfect_flame_box_scale=0.70_OF_CLAUDE_DEFAULT\nperfect_meter_color=FULL_METER_GREEN_UNTIL_RESULT_FADE\nperfect_fire_render_path=SEPARATE_HEAD_ANCHORED_NOISE_SHADER\nmeter_shift_design=90.0_right\nmeter_shift_down_design=0.5\nfeedback_gap_design=8.0\nflame_horizontal_anchor=projected_head_center\n"
         "banner_timing_source=GAME_RELEASE_ENUM\nengine=Dobby\n"
         "engine_commit=5dfc8546954ce3b3198132ab13fddb89ee92cdd7\n"
         "target_library=%s\ncomponent_symbol=%s\ncomponent_address=%p\n"
