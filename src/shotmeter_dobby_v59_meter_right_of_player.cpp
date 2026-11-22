@@ -433,7 +433,7 @@ void main() {
 
     // Procedural green flame anchored just above the projected player head.
     // The layered sine fields create upward flicker and independently moving tongues.
-    vec2 fq = vec2((p.x - 80.5) / 34.0, (20.0 - p.y) / 112.0);
+    vec2 fq = vec2((p.x - 80.5) / 34.0, (32.0 - p.y) / 96.0);
     float fy = clamp(fq.y, 0.0, 1.0);
     float flicker = 0.10 * sin(uTime * 17.0 + fq.y * 11.0)
                   + 0.06 * sin(uTime * 23.0 - fq.y * 18.0)
@@ -1079,9 +1079,10 @@ static void draw_horn(int surfaceW, int surfaceH, int anchorX, int anchorY,
     if (fireActive) {
         const float fireBx = anchorX - 80.5f * scale;
         const GLint fireVx = static_cast<GLint>(floorf(fireBx + 25.0f * scale));
+        const GLint fireVy = static_cast<GLint>(floorf(vy + 12.0f * scale));
         const GLsizei fireVw = static_cast<GLsizei>(ceilf(160.0f * scale) + 1.0f);
-        const GLsizei fireVh = static_cast<GLsizei>(ceilf(420.0f * scale) + 1.0f);
-        glViewport(fireVx, vy, fireVw, fireVh);
+        const GLsizei fireVh = static_cast<GLsizei>(ceilf(360.0f * scale) + 1.0f);
+        glViewport(fireVx, fireVy, fireVw, fireVh);
         glUniform2f(G.uOrigin, fireBx, by);
         glUniform1f(G.uAlpha, 0.0f);
         glUniform1f(G.uFill, 0.0f);
@@ -1143,8 +1144,8 @@ static void draw_banner(int viewportX, int viewportY, int surfaceW, int surfaceH
     const float bannerScale = scale * 0.55f;
     const float bannerW = 420.0f * bannerScale;
     const float bannerH = 130.0f * bannerScale;
-    const float bannerCenterX = hornCenterX + 0.75f * 319.0f * scale;
-    const float bannerCenterY = anchorY + 210.0f * scale;
+    const float bannerCenterX = hornCenterX + 0.65f * 319.0f * scale;
+    const float bannerCenterY = anchorY + 235.0f * scale;
     float bx0 = bannerCenterX - bannerW * 0.5f;
     float by0 = bannerCenterY - bannerH * 0.5f;
     const float minX = static_cast<float>(viewportX);
