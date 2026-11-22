@@ -1053,6 +1053,7 @@ static void draw_horn(int surfaceW, int surfaceH, int anchorX, int anchorY,
     glUniform1f(G.uScale, scale);
     glUniform1f(G.uFill, progress);
     glUniform1f(G.uFlash, perfect ? 1.0f : 0.0f);
+    glUniform1f(G.uAlpha, 1.0f); // restore meter opacity after any prior fire-only pass
     glUniform1f(G.uFire, 0.0f);
     glUniform1f(G.uTime, fireElapsed);
     glUniform2f(G.uDirFill,
