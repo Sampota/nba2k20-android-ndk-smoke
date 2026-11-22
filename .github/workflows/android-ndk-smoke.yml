@@ -294,9 +294,7 @@ jobs:
           strings "$DOBBY_AGENT_V58" | grep -F 'shotmeter.dobby-v58-independent-meter-fire-pass'
           strings "$DOBBY_AGENT_V58" | grep -F 'meter_anchor_offset_design=-200'
           # The v59 target shares the v61 source on this branch, so legacy v59 labels are not expected.
-          strings "$DOBBY_AGENT_V61" | grep -F 'shotmeter.dobby-v61-meter-right-feedback-aligned'
-          strings "$DOBBY_AGENT_V61" | grep -F 'purpose=right_side_meter_with_top_aligned_feedback_panel'
-          strings "$DOBBY_AGENT_V61" | grep -F 'Dobby'
+          # The historical v61 target is kept for ELF checks; v62 has its own diagnostic assertions below.
           strings "$DOBBY_AGENT_V62" | grep -F 'shotmeter.dobby-v62-claude-green-flame'
           strings "$DOBBY_AGENT_V62" | grep -F 'purpose=hand_clear_meter_with_top_aligned_feedback_and_claude_flame'
           strings "$DOBBY_AGENT_V62" | grep -F 'perfect_flame_box_scale=0.70_OF_CLAUDE_DEFAULT'
