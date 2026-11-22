@@ -1146,11 +1146,13 @@ static void draw_banner(int viewportX, int viewportY, int surfaceW, int surfaceH
     const float hornCenterX = hornBx + 123.5f * scale;
     const float hornCenterY = hornBy + 159.5f * scale;
 
-    const float bannerScale = scale;
+    // Compact result panel: 55% of the original width and height.
+    // Raise it well above the projected head so it never overlays the player.
+    const float bannerScale = scale * 0.55f;
     const float bannerW = 420.0f * bannerScale;
     const float bannerH = 130.0f * bannerScale;
     const float bannerCenterX = hornCenterX + 0.75f * 319.0f * scale;
-    const float bannerCenterY = hornCenterY + 0.35f * 319.0f * scale;
+    const float bannerCenterY = anchorY + 210.0f * scale;
     float bx0 = bannerCenterX - bannerW * 0.5f;
     float by0 = bannerCenterY - bannerH * 0.5f;
     const float minX = static_cast<float>(viewportX);
