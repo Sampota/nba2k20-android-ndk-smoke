@@ -24,11 +24,11 @@
 #include "greengiant_ima_b64.h"
 #include "../Files/horn_font_atlas.h"
 
-#define LOG_TAG "ShotmeterDobbyV59"
+#define LOG_TAG "ShotmeterDobbyV61"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define FILES_DIR "/data/user/0/com.t2ksports.nba2k20and/files"
-#define DIAG_NAME "shotmeter.dobby-v59-meter-right-of-player"
+#define DIAG_NAME "shotmeter.dobby-v61-meter-right-feedback-aligned"
 
 static constexpr uintptr_t kManagerOffset = 0x3c700e0ULL;
 static constexpr uintptr_t kSavedViewOffset = 0x90ULL;
@@ -1022,9 +1022,11 @@ static void draw_horn(int surfaceW, int surfaceH, int anchorX, int anchorY,
     (void)capture_gl_error(191); // GL state-query checkpoint
 
     const float scale = (160.0f * std::max(0.72f, std::min(1.35f, surfaceH / 720.0f))) / 319.0f;
-    /* Preserve the proven v50-v53 meter placement exactly. */
-    const float bx = anchorX + 43.0f*scale - 123.5f*scale;
-    const float topY = anchorY + 48.0f*scale;
+    /* Keep the v50-v53 base placement and apply only the requested small nudge. */
+    const float meterShiftX = 14.0f * scale;
+    const float meterShiftDown = 0.5f * scale;
+    const float bx = anchorX + 43.0f*scale - 123.5f*scale + meterShiftX;
+    const float topY = anchorY + 48.0f*scale - meterShiftDown;
     const float by = topY - 319.0f*scale;
     const GLint vx = static_cast<GLint>(floorf(bx + 60.0f*scale));
     const GLint vy = static_cast<GLint>(floorf(by + 19.0f*scale));
@@ -1136,18 +1138,28 @@ static void draw_banner(int viewportX, int viewportY, int surfaceW, int surfaceH
     if (!G.ok || !G.bannerOk || resultTiming < 1 || resultTiming > 5) return;
     const int resultIndex = resultTiming - 1;
     const float scale = (160.0f * std::max(0.72f, std::min(1.35f, surfaceH / 720.0f))) / 319.0f;
-    const float hornBx = anchorX + 43.0f * scale - 123.5f * scale;
-    const float hornCenterX = hornBx + 123.5f * scale;
+    const float hornBx = anchorX + 43.0f * scale - 123.5f * scale +
+        14.0f * scale;
+    const float meterRight = floorf(hornBx + 60.0f * scale) +
+        ceilf(187.0f * scale) + 1.0f;
+    const float meterTop = anchorY + 48.0f * scale - 0.5f * scale;
 
-    // Compact result panel: 55% of the original width and height.
-    // Raise it well above the projected head so it never overlays the player.
-    const float bannerScale = scale * 0.55f;
-    const float bannerW = 420.0f * bannerScale;
-    const float bannerH = 130.0f * bannerScale;
-    const float bannerCenterX = hornCenterX + 0.65f * 319.0f * scale;
-    const float bannerCenterY = anchorY + 235.0f * scale;
-    float bx0 = bannerCenterX - bannerW * 0.5f;
-    float by0 = bannerCenterY - bannerH * 0.5f;
+    // Put the feedback panel one small gap to the meter's right. Its top edge
+    // shares the meter's top edge. Shrink only when needed to keep it on-screen.
+    const float bannerGap = 8.0f * scale;
+    const float bannerLeft = meterRight + bannerGap;
+    const float availableW = static_cast<float>(viewportX + surfaceW) - bannerLeft;
+    if (availableW <= 8.0f * scale) return;
+    float bannerScale = scale * 0.55f;
+    float bannerW = 420.0f * bannerScale;
+    float bannerH = 130.0f * bannerScale;
+    if (bannerW > availableW) {
+        bannerScale = availableW / 420.0f;
+        bannerW = 420.0f * bannerScale;
+        bannerH = 130.0f * bannerScale;
+    }
+    float bx0 = bannerLeft;
+    float by0 = meterTop - bannerH;
     const float minX = static_cast<float>(viewportX);
     const float minY = static_cast<float>(viewportY);
     const float maxX = static_cast<float>(viewportX + surfaceW) - bannerW;
@@ -1688,7 +1700,7 @@ static void write_diagnostic(void) {
     snprintf(glShaderLog, sizeof(glShaderLog), "%s", g_gl_shader_log);
     pthread_mutex_unlock(&g_gl_diag_mutex);
     (void)snprintf(body, sizeof(body),
-        "agent=v59\npurpose=right_side_meter_clear_of_shooting_arm_with_head_anchored_fire_pass\n"
+        "agent=v61\npurpose=right_side_meter_with_top_aligned_feedback_panel\n"
         "banner_renderer=CLAUDE_SDF_NEON_PANEL\nbanner_animation=WIPE_UP_BOTTOM_TO_TOP\nperfect_effect=PROCEDURAL_GREEN_FLAME_ABOVE_PLAYER_HEAD\nperfect_meter_color=FULL_METER_GREEN_UNTIL_RESULT_FADE\nperfect_fire_animation=UPWARD_FLICKER_AND_PARTICLE_LIKE_TONGUES\nperfect_fire_render_path=SEPARATE_HEAD_ANCHORED_DRAW_PASS\nmeter_anchor_offset_design=-80.5 (v50-v53 formula)\n"
         "banner_timing_source=GAME_RELEASE_ENUM\nengine=Dobby\n"
         "engine_commit=5dfc8546954ce3b3198132ab13fddb89ee92cdd7\n"
@@ -1896,7 +1908,7 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
     pthread_t thread;
     if (pthread_create(&thread, nullptr, reporter, nullptr) == 0) pthread_detach(thread);
     else LOGE("diagnostic reporter thread creation failed");
-    LOGI("v59 right-side meter agent attached; probability_hook_code=%d enabled=%u",
+    LOGI("v61 right-side meter agent attached; probability_hook_code=%d enabled=%u",
          g_probability_hook_code, g_probability_enabled.load());
     return JNI_OK;
 }
