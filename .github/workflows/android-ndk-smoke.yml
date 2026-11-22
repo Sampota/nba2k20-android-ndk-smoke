@@ -290,7 +290,7 @@ jobs:
           strings "$DOBBY_AGENT_V58" | grep -F 'shotmeter.dobby-v58-independent-meter-fire-pass'
           strings "$DOBBY_AGENT_V58" | grep -F 'meter_anchor_offset_design=-200'
           strings "$DOBBY_AGENT_V59" | grep -F 'shotmeter.dobby-v59-meter-right-of-player'
-          strings "$DOBBY_AGENT_V59" | grep -F 'meter_anchor_offset_design=+200'
+          strings "$DOBBY_AGENT_V59" | grep -F 'meter_anchor_offset_design=-80.5 (v50-v53 formula)'
           strings "$DOBBY_AGENT_V59" | grep -F 'Dobby'
           strings "$DOBBY_AGENT_V58" | grep -F 'Dobby'
           strings "$DOBBY_AGENT_V47" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
