@@ -603,8 +603,8 @@ set_target_properties(shotmeter_dobby_v51_grade_aware_agent PROPERTIES
     VISIBILITY_INLINES_HIDDEN YES)
 
 
-# v52 applies grade-aware probability remapping only at the balanced-dice
-# simulation entry. The game's stored chance and HUD grade feedback remain intact.
+# v52 adds Claude’s SDF neon shot-feedback banner and Wipe Up animation
+# to the existing grade-aware probability agent and its single EGL renderer.
 set(_shotmeter_dobby_v52_agent_map
     "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v52.map.txt")
 file(WRITE "${_shotmeter_dobby_v52_agent_map}"
