@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn, v50-render-probability-diagnostics, v51-grade-aware-probability, v52-claude-shot-feedback, v53-gl-stability-probability-fix ]
   pull_request:
-    branches: [ main ]
+    branches: [ v52-claude-shot-feedback ]
   workflow_dispatch:
 
 jobs:
