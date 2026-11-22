@@ -1141,10 +1141,7 @@ static void draw_banner(int viewportX, int viewportY, int surfaceW, int surfaceH
     const int resultIndex = resultTiming - 1;
     const float scale = (160.0f * std::max(0.72f, std::min(1.35f, surfaceH / 720.0f))) / 319.0f;
     const float hornBx = anchorX + 43.0f * scale - 123.5f * scale;
-    const float hornTopY = anchorY + 48.0f * scale;
-    const float hornBy = hornTopY - 319.0f * scale;
     const float hornCenterX = hornBx + 123.5f * scale;
-    const float hornCenterY = hornBy + 159.5f * scale;
 
     // Compact result panel: 55% of the original width and height.
     // Raise it well above the projected head so it never overlays the player.
