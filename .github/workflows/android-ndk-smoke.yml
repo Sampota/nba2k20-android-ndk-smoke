@@ -1,4 +1,5 @@
 name: Android NDK ARM64 smoke test and read-only capture probe
+# v53 validation: strict ARM64 build, symbol, and artifact checks.
 
 on:
   push:
