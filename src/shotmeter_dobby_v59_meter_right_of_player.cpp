@@ -1022,18 +1022,13 @@ static void draw_horn(int surfaceW, int surfaceH, int anchorX, int anchorY,
     (void)capture_gl_error(191); // GL state-query checkpoint
 
     const float scale = (160.0f * std::max(0.72f, std::min(1.35f, surfaceH / 720.0f))) / 319.0f;
-    /* Place the meter to the player's right. Clamp its viewport to the
-       surface so wide aspect ratios and edge-of-screen players remain safe. */
-    const float desiredMeterBx = anchorX + (200.0f + 80.5f) * scale;
-    const float meterVw = ceilf(187.0f * scale) + 1.0f;
-    const float minMeterBx = -60.0f * scale;
-    const float maxMeterBx = static_cast<float>(surfaceW) - meterVw - 60.0f * scale;
-    const float bx = std::max(minMeterBx, std::min(maxMeterBx, desiredMeterBx));
+    /* Preserve the proven v50-v53 meter placement exactly. */
+    const float bx = anchorX + 43.0f*scale - 123.5f*scale;
     const float topY = anchorY + 48.0f*scale;
     const float by = topY - 319.0f*scale;
     const GLint vx = static_cast<GLint>(floorf(bx + 60.0f*scale));
     const GLint vy = static_cast<GLint>(floorf(by + 19.0f*scale));
-    const GLsizei vw = static_cast<GLsizei>(meterVw);
+    const GLsizei vw = static_cast<GLsizei>(ceilf(187.0f*scale)+1.0f);
     const GLsizei vh = static_cast<GLsizei>(ceilf(300.0f*scale)+1.0f);
 
     if (wasDepth) glDisable(GL_DEPTH_TEST);
@@ -1693,7 +1688,7 @@ static void write_diagnostic(void) {
     pthread_mutex_unlock(&g_gl_diag_mutex);
     (void)snprintf(body, sizeof(body),
         "agent=v59\npurpose=right_side_meter_clear_of_shooting_arm_with_head_anchored_fire_pass\n"
-        "banner_renderer=CLAUDE_SDF_NEON_PANEL\nbanner_animation=WIPE_UP_BOTTOM_TO_TOP\nperfect_effect=PROCEDURAL_GREEN_FLAME_ABOVE_PLAYER_HEAD\nperfect_meter_color=FULL_METER_GREEN_UNTIL_RESULT_FADE\nperfect_fire_animation=UPWARD_FLICKER_AND_PARTICLE_LIKE_TONGUES\nperfect_fire_render_path=SEPARATE_HEAD_ANCHORED_DRAW_PASS\nmeter_anchor_offset_design=+200\n"
+        "banner_renderer=CLAUDE_SDF_NEON_PANEL\nbanner_animation=WIPE_UP_BOTTOM_TO_TOP\nperfect_effect=PROCEDURAL_GREEN_FLAME_ABOVE_PLAYER_HEAD\nperfect_meter_color=FULL_METER_GREEN_UNTIL_RESULT_FADE\nperfect_fire_animation=UPWARD_FLICKER_AND_PARTICLE_LIKE_TONGUES\nperfect_fire_render_path=SEPARATE_HEAD_ANCHORED_DRAW_PASS\nmeter_anchor_offset_design=-80.5 (v50-v53 formula)\n"
         "banner_timing_source=GAME_RELEASE_ENUM\nengine=Dobby\n"
         "engine_commit=5dfc8546954ce3b3198132ab13fddb89ee92cdd7\n"
         "target_library=%s\ncomponent_symbol=%s\ncomponent_address=%p\n"
