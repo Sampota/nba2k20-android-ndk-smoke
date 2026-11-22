@@ -213,3 +213,43 @@ bytes, SHA-256
 All LOAD segments use 16 KB alignment; only Android system shared libraries
 are required. On-device behavior is not yet verified and v41 is not yet the
 custom GREEN GIANT visual.
+
+
+## v63 coordinate correction, GL error attribution, and diagnostic reliability
+
+The v63 Dobby agent is built as `libshotmeter-v63.so` from
+`src/shotmeter_dobby_v63_coordinate_gl_fix.cpp`. It carries forward the v62
+shot-meter, timing, perfect-shot feedback, audio, and banner behavior, with
+these targeted changes:
+
+- The meter's horizontal offset is now a shared design constant used by both
+  meter and feedback-panel placement, avoiding coordinate drift between them.
+  The offset is increased from 38 to 90 design units; on-device hand clearance
+  still requires visual verification.
+- The green flame's horizontal axis is placed at the projected head center,
+  rather than applying the previous extra 37.5-scaled-unit horizontal offset.
+  Its vertical base remains slightly above the projected head.
+- The diagnostic records the actual meter origin and flame axis/base coordinates.
+  It writes to a temporary file, retries interrupted/partial writes, checks
+  `fsync` and `close`, then atomically renames the completed file into place.
+- A GL error sampled at stage 170 is explicitly reported as a *pre-existing
+  game-side error before overlay rendering*. It is kept separate from the
+  overlay's own GL error counters. This prevents an error already pending in
+  the game's GL context (including the previously observed `0x500`) from being
+  misreported as an error caused by the overlay.
+
+The existing meter, flame, and banner draw paths retain their GL state
+save/restore behavior. No game-owned meter fields or shot timing are changed
+by the coordinate/diagnostic changes. Cleanup is deliberately conservative:
+no functions or state are deleted solely because they appear unused in a
+partial search; compiler and link checks remain the gate for dead-code cleanup.
+
+The v63 GitHub Actions job verifies that the new ARM64 ELF exists and contains
+the expected diagnostic and coordinate markers. A successful CI build proves
+compilation and artifact integrity only. It does **not** prove that the
+90-unit meter shift clears the hand on every camera setting, that the flame
+looks centered in live gameplay, or that the external game-side GL error is
+resolved. Those require a fresh on-device gameplay test.
+
+Diagnostic file:
+`files/shotmeter.dobby-v63-coordinate-gl-diagnostic`
