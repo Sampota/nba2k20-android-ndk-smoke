@@ -2,7 +2,7 @@ name: Android NDK ARM64 smoke test and read-only capture probe
 
 on:
   push:
-    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn, v50-render-probability-diagnostics, v51-grade-aware-probability ]
+    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn, v50-render-probability-diagnostics, v51-grade-aware-probability, v52-claude-shot-feedback ]
   workflow_dispatch:
 
 jobs:
@@ -97,6 +97,7 @@ jobs:
           DOBBY_AGENT_V49="build-android/libshotmeter-v49.so"
           DOBBY_AGENT_V50="build-android/libshotmeter-v50r1.so"
           DOBBY_AGENT_V51="build-android/libshotmeter-v51.so"
+          DOBBY_AGENT_V52="build-android/libshotmeter-v52.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
@@ -116,10 +117,11 @@ jobs:
           test -s "$DOBBY_AGENT_V49"
           test -s "$DOBBY_AGENT_V50"
           test -s "$DOBBY_AGENT_V51"
+          test -s "$DOBBY_AGENT_V52"
           test -n "$SHADOWHOOK"
           test -s "$SHADOWHOOK"
 
-          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$SHADOWHOOK"; do
+          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$SHADOWHOOK"; do
             echo "=== $LIB ==="
             file "$LIB"
             readelf -h "$LIB" | grep -E 'Class:|Machine:'
@@ -135,7 +137,7 @@ jobs:
             echo "Single-file ShadowHook agent unexpectedly depends on libshadowhook.so" >&2
             exit 1
           fi
-          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
+          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
             echo "Dobby diagnostic agent unexpectedly has a separate hook-engine or shared C++ dependency" >&2
             exit 1
           fi
@@ -237,6 +239,13 @@ jobs:
           strings "$DOBBY_AGENT_V51" | grep -F '_Z32MTH_GetDistanceFromPointToBasketPKDv4_f'
           strings "$DOBBY_AGENT_V51" | grep -F '_Z40JumpshotFeedback_TranslatePercentToGradeff'
           strings "$DOBBY_AGENT_V51" | grep -F 'Dobby'
+          strings "$DOBBY_AGENT_V52" | grep -F 'shotmeter.dobby-v52-claude-shot-feedback'
+          strings "$DOBBY_AGENT_V52" | grep -F 'CLAUDE_SDF_NEON_PANEL'
+          strings "$DOBBY_AGENT_V52" | grep -F 'WIPE_UP_BOTTOM_TO_TOP'
+          strings "$DOBBY_AGENT_V52" | grep -F 'eglSwapBuffers'
+          strings "$DOBBY_AGENT_V52" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
+          strings "$DOBBY_AGENT_V52" | grep -F '_Z30PHY_LaunchShotBalancedDiceRollP8AI_ACTORP7AI_BALLif5_bool19PHY_SHOT_TRAJECTORY23MVS_SHOT_RELEASE_TIMING'
+          strings "$DOBBY_AGENT_V52" | grep -F 'Dobby'
           strings "$DOBBY_AGENT_V47" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
           strings "$DOBBY_AGENT_V47" | grep -F 'perfect_class3_release_events'
           strings "$DOBBY_AGENT_V47" | grep -F 'OpenSLES'
@@ -264,6 +273,7 @@ jobs:
           cp "$DOBBY_AGENT_V49" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V50" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V51" build-android/artifacts/arm64-v8a/
+          cp "$DOBBY_AGENT_V52" build-android/artifacts/arm64-v8a/
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Upload Android ARM64 smoke-test artifact
@@ -388,4 +398,11 @@ jobs:
         with:
           name: shotmeter-dobby-v51-grade-aware-probability-arm64
           path: build-android/artifacts/arm64-v8a/libshotmeter-v51.so
+          if-no-files-found: error
+
+      - name: Upload single-file Dobby v52 Claude shot-feedback agent
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-dobby-v52-claude-shot-feedback-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter-v52.so
           if-no-files-found: error
