@@ -109,7 +109,7 @@ static std::atomic<uint32_t> g_attach_calls{0}, g_duplicate_attach_calls{0};
 static std::atomic<uint32_t> g_init_state{0};
 static std::atomic<uint32_t> g_do_draw_calls{0}, g_projection_calls{0};
 static std::atomic<uint32_t> g_projection_invalid{0};
-static std::atomic<uint32_t> g_projection_valid{0}, g_swap_calls{0};
+static std::atomic<uint32_t> g_projection_valid{0};
 static std::atomic<uint32_t> g_active_meter_frames{0}, g_draw_calls{0};
 static std::atomic<uint32_t> g_release_event_calls{0}, g_perfect_release_events{0}, g_perfect_flash_frames{0};
 static std::atomic<uint32_t> g_release_timing_counts[6]{};
@@ -122,7 +122,7 @@ static std::atomic<int32_t> g_last_release_timing{-1};
 static std::atomic<uint64_t> g_perfect_until_ns{0};
 static std::atomic<uint64_t> g_result_until_ns{0};
 static std::atomic<uint64_t> g_result_started_ns{0};
-static std::atomic<uint32_t> g_banner_draw_calls{0};
+
 static std::atomic<uint32_t> g_result_sequence{0};
 static std::atomic<int32_t> g_result_timing{-1};
 static std::atomic<uint32_t> g_result_raw_bits{0};
@@ -130,7 +130,7 @@ static std::atomic<uint32_t> g_anchor_valid{0};
 static std::atomic<uint32_t> g_anchor_x_bits{0}, g_anchor_y_bits{0};
 static std::atomic<uint32_t> g_meter_origin_x_bits{0}, g_meter_origin_y_bits{0};
 static std::atomic<uint32_t> g_flame_axis_x_bits{0}, g_flame_base_y_bits{0};
-static std::atomic<int32_t> g_gl_external_error_code{-1};
+
 static std::atomic<uint32_t> g_anchor_z_bits{0}, g_clip_w_bits{0};
 static std::atomic<uint32_t> g_meter_bits{0}, g_marker_bits{0};
 static std::atomic<uint32_t> g_component_animation_bits{0}, g_component_release_value_bits{0};
@@ -148,26 +148,26 @@ static std::atomic<int32_t> g_framebuffer{-1};
 static std::atomic<uint32_t> g_sound_play_count{0};
 static std::atomic<int32_t> g_sound_init_code{-999};
 static std::atomic<int32_t> g_shader_init_code{-999};
-static std::atomic<int32_t> g_gl_init_stage{0}, g_gl_error_code{-1};
-static std::atomic<int32_t> g_gl_last_error_stage{-1};
-static std::atomic<uint32_t> g_gl_error_count{0}, g_gl_draw_error_count{0};
-static std::atomic<uint32_t> g_gl_pre_overlay_error_count{0};
-static std::atomic<uint32_t> g_gl_pre_overlay_sample_count{0};
-static std::atomic<uint32_t> g_gl_pre_overlay_sequence{0};
-static std::atomic<uint32_t> g_gl_pre_overlay_last_frame{0};
-static std::atomic<uintptr_t> g_gl_pre_overlay_context{0};
-static std::atomic<uintptr_t> g_gl_pre_overlay_display{0};
-static std::atomic<uintptr_t> g_gl_pre_overlay_surface{0};
-static std::atomic<int32_t> g_gl_khr_debug_extension_status{-1};
-static std::atomic<uint32_t> g_gl_khr_debug_callback_proc_available{0};
+static std::atomic<int32_t> g_gl_init_stage{0};
+
+
+
+
+
+
+
+
+
+
+
 static std::atomic<uint32_t> g_perfect_fire_trigger_count{0}, g_perfect_fire_draw_calls{0};
 static std::atomic<uint32_t> g_perfect_fire_frames{0}, g_perfect_fire_active{0};
 static std::atomic<uint32_t> g_perfect_fire_draw_failures{0};
 static std::atomic<int32_t> g_gl_vertex_status{-1}, g_gl_fragment_status{-1}, g_gl_link_status{-1};
-static std::atomic<int32_t> g_gl_draw_error_code{-1};
+
 static std::atomic<uint32_t> g_gl_init_attempts{0};
 static std::atomic<uintptr_t> g_egl_context_value{0}, g_egl_display_value{0}, g_egl_surface_value{0};
-static std::atomic<uint32_t> g_gl_identity_captured{0};
+
 static pthread_mutex_t g_gl_diag_mutex = PTHREAD_MUTEX_INITIALIZER;
 static char g_gl_version[160] = {}, g_gl_renderer[160] = {}, g_gl_vendor[160] = {};
 static char g_glsl_version[160] = {}, g_gl_shader_log[768] = {};
