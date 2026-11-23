@@ -1,12 +1,13 @@
 name: Android NDK ARM64 smoke test and read-only capture probe
+# v66 clean-release build revision (diagnostic-state cleanup)
 # v53 validation: strict ARM64 build, symbol, and artifact checks.
 # Triggered against the v52 baseline branch for reproducible CI validation.
 
 on:
   push:
-    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn, v50-render-probability-diagnostics, v51-grade-aware-probability, v52-claude-shot-feedback, v53-gl-stability-probability-fix, v54-perfect-shot-fire-celebration, v55-meter-anchor-fire-fix, v56-independent-meter-fire-pass, v57-glsl-fire-region-compile-fix, v58-left-meter-raised-larger-fire, v59-meter-right-of-player, v61-meter-right-feedback-top-aligned, v62-claude-flame-hand-clear-meter, v63-diagnostic-coordinate-gl-fix, v64-halo-flame-tight-feedback ]
+    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn, v50-render-probability-diagnostics, v51-grade-aware-probability, v52-claude-shot-feedback, v53-gl-stability-probability-fix, v54-perfect-shot-fire-celebration, v55-meter-anchor-fire-fix, v56-independent-meter-fire-pass, v57-glsl-fire-region-compile-fix, v58-left-meter-raised-larger-fire, v59-meter-right-of-player, v61-meter-right-feedback-top-aligned, v62-claude-flame-hand-clear-meter, v63-diagnostic-coordinate-gl-fix, v64-halo-flame-tight-feedback, v65-clean-code-visual-tuning, v66-clean-release, v67-gl-recovery ]
   pull_request:
-    branches: [ v52-claude-shot-feedback ]
+    branches: [ v52-claude-shot-feedback, v64-halo-flame-tight-feedback ]
   workflow_dispatch:
 
 jobs:
@@ -113,6 +114,9 @@ jobs:
           DOBBY_AGENT_V62="build-android/libshotmeter-v62.so"
           DOBBY_AGENT_V63="build-android/libshotmeter-v63.so"
           DOBBY_AGENT_V64="build-android/libshotmeter-v64.so"
+          DOBBY_AGENT_V65="build-android/libshotmeter-v65.so"
+          DOBBY_AGENT_V66="build-android/libshotmeter-v66.so"
+          DOBBY_AGENT_V67="build-android/libshotmeter-v67.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
@@ -144,10 +148,13 @@ jobs:
           test -s "$DOBBY_AGENT_V62"
           test -s "$DOBBY_AGENT_V63"
           test -s "$DOBBY_AGENT_V64"
+          test -s "$DOBBY_AGENT_V65"
+          test -s "$DOBBY_AGENT_V66"
+          test -s "$DOBBY_AGENT_V67"
           test -n "$SHADOWHOOK"
           test -s "$SHADOWHOOK"
 
-          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$DOBBY_AGENT_V53" "$DOBBY_AGENT_V54" "$DOBBY_AGENT_V55" "$DOBBY_AGENT_V56" "$DOBBY_AGENT_V57" "$DOBBY_AGENT_V58" "$DOBBY_AGENT_V59" "$DOBBY_AGENT_V61" "$DOBBY_AGENT_V62" "$DOBBY_AGENT_V63" "$DOBBY_AGENT_V64" "$SHADOWHOOK"; do
+          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$DOBBY_AGENT_V53" "$DOBBY_AGENT_V54" "$DOBBY_AGENT_V55" "$DOBBY_AGENT_V56" "$DOBBY_AGENT_V57" "$DOBBY_AGENT_V58" "$DOBBY_AGENT_V59" "$DOBBY_AGENT_V61" "$DOBBY_AGENT_V62" "$DOBBY_AGENT_V63" "$DOBBY_AGENT_V64" "$DOBBY_AGENT_V65" "$DOBBY_AGENT_V66" "$DOBBY_AGENT_V67" "$SHADOWHOOK"; do
             echo "=== $LIB ==="
             file "$LIB"
             readelf -h "$LIB" | grep -E 'Class:|Machine:'
@@ -163,7 +170,7 @@ jobs:
             echo "Single-file ShadowHook agent unexpectedly depends on libshadowhook.so" >&2
             exit 1
           fi
-          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$DOBBY_AGENT_V53" "$DOBBY_AGENT_V54" "$DOBBY_AGENT_V55" "$DOBBY_AGENT_V56" "$DOBBY_AGENT_V57" "$DOBBY_AGENT_V59" "$DOBBY_AGENT_V61" "$DOBBY_AGENT_V62" "$DOBBY_AGENT_V64" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
+          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$DOBBY_AGENT_V53" "$DOBBY_AGENT_V54" "$DOBBY_AGENT_V55" "$DOBBY_AGENT_V56" "$DOBBY_AGENT_V57" "$DOBBY_AGENT_V59" "$DOBBY_AGENT_V61" "$DOBBY_AGENT_V62" "$DOBBY_AGENT_V64" "$DOBBY_AGENT_V65" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
             echo "Dobby diagnostic agent unexpectedly has a separate hook-engine or shared C++ dependency" >&2
             exit 1
           fi
@@ -310,6 +317,12 @@ jobs:
           strings "$DOBBY_AGENT_V63" | grep -F 'Dobby'
           readelf --dyn-syms --wide "$DOBBY_AGENT_V64" | grep -F 'Agent_OnAttach'
           readelf --dyn-syms --wide "$DOBBY_AGENT_V64" | grep -F 'Agent_OnUnload'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V65" | grep -F 'Agent_OnAttach'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V65" | grep -F 'Agent_OnUnload'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V66" | grep -F 'Agent_OnAttach'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V66" | grep -F 'Agent_OnUnload'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V67" | grep -F 'Agent_OnAttach'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V67" | grep -F 'Agent_OnUnload'
           strings "$DOBBY_AGENT_V64" | grep -F 'shotmeter.dobby-v64-halo-flame-diagnostic'
           strings "$DOBBY_AGENT_V64" | grep -F 'feedback_gap_design=4.0'
           strings "$DOBBY_AGENT_V64" | grep -F 'flame_vertical_base_offset_design=48.0_above_projected_head'
@@ -319,7 +332,23 @@ jobs:
           strings "$DOBBY_AGENT_V64" | grep -F 'gl_khr_debug_extension_status='
           strings "$DOBBY_AGENT_V64" | grep -F 'gl_khr_debug_callback_registration=NOT_REGISTERED_TO_PRESERVE_GAME_CALLBACK_STATE'
           strings "$DOBBY_AGENT_V64" | grep -F 'Dobby'
-          sha256sum "$DOBBY_AGENT_V64"
+          strings "$DOBBY_AGENT_V65" | grep -F 'shotmeter.dobby-v65-clean-feedback-diagnostic'
+          strings "$DOBBY_AGENT_V65" | grep -F 'feedback_gap_design=2.0'
+          strings "$DOBBY_AGENT_V65" | grep -F 'flame_vertical_base_offset_design=51.0_above_projected_head'
+          strings "$DOBBY_AGENT_V65" | grep -F 'perfect_flame_box_scale=1.00_OF_CLAUDE_DEFAULT'
+          strings "$DOBBY_AGENT_V65" | grep -F 'probability_timing_%d_calls=%u'
+          strings "$DOBBY_AGENT_V65" | grep -F 'gl_pre_overlay_sampling_interval_frames=60'
+          strings "$DOBBY_AGENT_V65" | grep -F 'Dobby'
+          strings "$DOBBY_AGENT_V66" | grep -F 'shotmeter.dobby-v66-clean-release'
+          strings "$DOBBY_AGENT_V66" | grep -F 'Dobby'
+          strings "$DOBBY_AGENT_V67" | grep -F 'shotmeter.dobby-v67-gl-recovery'
+          strings "$DOBBY_AGENT_V67" | grep -F 'shotmeter.dobby-v67-gl-recovery attached'
+          strings "$DOBBY_AGENT_V67" | grep -F 'Dobby'
+          if strings "$DOBBY_AGENT_V66" | grep -E 'diagnostic temp|gl_pre_overlay|pre-existing game OpenGL error|probability_timing_%d_calls|reporter thread'; then
+            echo "v66 unexpectedly contains diagnostic reporting strings" >&2
+            exit 1
+          fi
+          sha256sum "$DOBBY_AGENT_V65"
           strings "$DOBBY_AGENT_V58" | grep -F 'Dobby'
           strings "$DOBBY_AGENT_V47" | grep -F '_Z20EVT_UserShotReleasedP12AI_NBA_ACTOR23MVS_SHOT_RELEASE_TIMINGff'
           strings "$DOBBY_AGENT_V47" | grep -F 'perfect_class3_release_events'
@@ -334,7 +363,7 @@ jobs:
           cp "$SMOKE" build-android/artifacts/arm64-v8a/
           cp "$PROBE" build-android/artifacts/arm64-v8a/
           cp "$PROXY" build-android/artifacts/arm64-v8a/
-          cp "$AGENT" build-android/artifacts/arm64-v8a/
+          cp "$AGENT" build-android/artifacts/arm64-v8a/libshotmeter-shadowhook.so
           cp "$DOBBY_AGENT" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V39" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V40" build-android/artifacts/arm64-v8a/
@@ -360,6 +389,9 @@ jobs:
           cp "$DOBBY_AGENT_V62" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V63" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V64" build-android/artifacts/arm64-v8a/
+          cp "$DOBBY_AGENT_V65" build-android/artifacts/arm64-v8a/
+          cp "$DOBBY_AGENT_V66" build-android/artifacts/arm64-v8a/libshotmeter.so
+          cp "$DOBBY_AGENT_V67" build-android/artifacts/arm64-v8a/libshotmeter-v67.so
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Upload Android ARM64 smoke-test artifact
@@ -392,7 +424,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: shotmeter-nonroot-jvmti-agent-arm64
-          path: build-android/artifacts/arm64-v8a/libshotmeter.so
+          path: build-android/artifacts/arm64-v8a/libshotmeter-shadowhook.so
           if-no-files-found: error
 
       - name: Upload single-file Dobby v38 diagnostic agent
@@ -570,4 +602,25 @@ jobs:
         with:
           name: shotmeter-dobby-v64-halo-flame-tight-feedback-arm64
           path: build-android/artifacts/arm64-v8a/libshotmeter-v64.so
+          if-no-files-found: error
+
+      - name: Upload single-file Dobby v65 cleaned feedback agent
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-dobby-v65-clean-feedback-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter-v65.so
+          if-no-files-found: error
+
+      - name: Upload final v66 Dobby library (libshotmeter.so)
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-v66-final-libshotmeter-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter.so
+          if-no-files-found: error
+
+      - name: Upload v67 GL-recovery Dobby library
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-v67-gl-recovery-libshotmeter-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter-v67.so
           if-no-files-found: error
