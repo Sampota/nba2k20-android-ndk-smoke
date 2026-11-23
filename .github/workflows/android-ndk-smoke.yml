@@ -327,7 +327,7 @@ jobs:
           strings "$DOBBY_AGENT_V65" | grep -F 'feedback_gap_design=2.0'
           strings "$DOBBY_AGENT_V65" | grep -F 'flame_vertical_base_offset_design=51.0_above_projected_head'
           strings "$DOBBY_AGENT_V65" | grep -F 'perfect_flame_box_scale=1.00_OF_CLAUDE_DEFAULT'
-          strings "$DOBBY_AGENT_V65" | grep -F 'probability_timing_2_calls='
+          strings "$DOBBY_AGENT_V65" | grep -F 'probability_timing_%d_calls=%u'
           strings "$DOBBY_AGENT_V65" | grep -F 'gl_pre_overlay_sampling_interval_frames=60'
           strings "$DOBBY_AGENT_V65" | grep -F 'Dobby'
           sha256sum "$DOBBY_AGENT_V65"
