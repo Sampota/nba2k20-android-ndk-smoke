@@ -88,7 +88,13 @@ static std::atomic<uint32_t> g_probability_hook_calls{0}, g_probability_modified
 static std::atomic<uint32_t> g_probability_invalid_context{0};
 static std::atomic<uint32_t> g_probability_last_original_bits{0}, g_probability_last_applied_bits{0};
 static std::atomic<uint32_t> g_probability_last_distance_bits{0};
+static std::atomic<uint32_t> g_probability_last_location_x_bits{0};
+static std::atomic<uint32_t> g_probability_last_location_y_bits{0};
+static std::atomic<uint32_t> g_probability_last_location_z_bits{0};
 static std::atomic<int32_t> g_probability_last_grade{-1}, g_probability_last_timing{-1};
+static std::atomic<int32_t> g_probability_last_grade_status{0};
+static std::atomic<uint32_t> g_probability_grade_validation_self_test_pass{0};
+static std::atomic<uint32_t> g_probability_grade_validation_self_test_cases{0};
 
 static int g_self_code = -999, g_self_base = -999;
 static int g_self_original = -999, g_self_patched = -999;
@@ -133,6 +139,13 @@ static std::atomic<int32_t> g_gl_init_stage{0}, g_gl_error_code{-1};
 static std::atomic<int32_t> g_gl_last_error_stage{-1};
 static std::atomic<uint32_t> g_gl_error_count{0}, g_gl_draw_error_count{0};
 static std::atomic<uint32_t> g_gl_pre_overlay_error_count{0};
+static std::atomic<uint32_t> g_gl_pre_overlay_sequence{0};
+static std::atomic<uint32_t> g_gl_pre_overlay_last_frame{0};
+static std::atomic<uintptr_t> g_gl_pre_overlay_context{0};
+static std::atomic<uintptr_t> g_gl_pre_overlay_display{0};
+static std::atomic<uintptr_t> g_gl_pre_overlay_surface{0};
+static std::atomic<int32_t> g_gl_khr_debug_extension_status{-1};
+static std::atomic<uint32_t> g_gl_khr_debug_callback_proc_available{0};
 static std::atomic<uint32_t> g_perfect_fire_trigger_count{0}, g_perfect_fire_draw_calls{0};
 static std::atomic<uint32_t> g_perfect_fire_frames{0}, g_perfect_fire_active{0};
 static std::atomic<int32_t> g_gl_vertex_status{-1}, g_gl_fragment_status{-1}, g_gl_link_status{-1};
@@ -236,28 +249,104 @@ static bool probability_mapping_self_test(uint32_t *case_count) {
 static std::atomic<uint32_t> g_probability_map_self_test_pass{0};
 static std::atomic<uint32_t> g_probability_map_self_test_cases{0};
 
+enum ProbabilityGradeStatus : int32_t {
+    kGradeNotRequired = 0,
+    kGradeValid = 1,
+    kGradeMissingActor = 2,
+    kGradeMissingFunction = 3,
+    kGradeInvalidLaunchChance = 4,
+    kGradeNonfiniteLocation = 5,
+    kGradeNonfiniteDistance = 6,
+    kGradeNegativeDistance = 7,
+    kGradeIndexOutOfRange = 8
+};
+
+static bool valid_grade_distance(float distance) {
+    return std::isfinite(distance) && distance >= 0.0f;
+}
+static bool valid_grade_index(int32_t grade) {
+    return grade >= 0 && grade < 13;
+}
+static const char *probability_grade_status_name(int32_t status) {
+    switch (status) {
+        case kGradeNotRequired: return "NOT_REQUIRED_FOR_TIMING_CLASS";
+        case kGradeValid: return "VALID_GRADE";
+        case kGradeMissingActor: return "MISSING_ACTOR";
+        case kGradeMissingFunction: return "MISSING_GRADE_FUNCTION";
+        case kGradeInvalidLaunchChance: return "INVALID_LAUNCH_CHANCE";
+        case kGradeNonfiniteLocation: return "NONFINITE_PLAYER_LOCATION";
+        case kGradeNonfiniteDistance: return "NONFINITE_BASKET_DISTANCE";
+        case kGradeNegativeDistance: return "NEGATIVE_BASKET_DISTANCE";
+        case kGradeIndexOutOfRange: return "GRADE_INDEX_OUT_OF_RANGE";
+        default: return "UNKNOWN_GRADE_STATUS";
+    }
+}
+static bool grade_validation_self_test(uint32_t *case_count) {
+    uint32_t checked = 0;
+    const float distances[] = {0.0f, 12.5f, NAN, INFINITY, -INFINITY, -0.01f};
+    const bool expected_distance[] = {true, true, false, false, false, false};
+    for (size_t i = 0; i < sizeof(distances) / sizeof(distances[0]); ++i) {
+        if (valid_grade_distance(distances[i]) != expected_distance[i]) return false;
+        ++checked;
+    }
+    const int32_t grades[] = {0, 12, -1, 13};
+    const bool expected_grade[] = {true, true, false, false};
+    for (size_t i = 0; i < sizeof(grades) / sizeof(grades[0]); ++i) {
+        if (valid_grade_index(grades[i]) != expected_grade[i]) return false;
+        ++checked;
+    }
+    if (case_count) *case_count = checked;
+    return checked == 10;
+}
+
 __attribute__((noinline))
 static void balanced_dice_proxy(void *actor, void *ball, int32_t shot_type,
                                 float original_chance, bool bank_shot,
                                 int32_t trajectory, int32_t timing) {
     float applied_chance = original_chance;
     float distance = NAN;
+    float location_x = NAN, location_y = NAN, location_z = NAN;
     int32_t grade = -1;
+    int32_t grade_status = kGradeNotRequired;
     bool modified = false;
 
     if (g_probability_enabled.load(std::memory_order_acquire) != 0 &&
         timing >= 1 && timing <= 5) {
         /* At PHY_LaunchShotBalancedDiceRoll, s0 is the exact chance entering
-           simulation and w5 is the native release-timing enum. The chance
-           stored by the game for HUD feedback is never written here. */
-        if ((timing == 2 || timing == 4) && actor && g_get_location &&
-            g_get_distance && g_translate_grade && std::isfinite(original_chance) &&
-            original_chance >= 0.0f && original_chance <= 1.0f) {
-            alignas(16) float location[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-            g_get_location(actor, location);
-            distance = g_get_distance(location);
-            if (std::isfinite(distance) && distance >= 0.0f)
-                grade = g_translate_grade(original_chance, distance);
+           simulation and w5 is the native release-timing enum. A grade is
+           required only for Slight Early/Late (classes 2 and 4); Very
+           Early/Late and Excellent do not consume a grade. The chance stored
+           by the game for HUD feedback is never written here. */
+        if (timing == 2 || timing == 4) {
+            if (!actor) {
+                grade_status = kGradeMissingActor;
+            } else if (!g_get_location || !g_get_distance || !g_translate_grade) {
+                grade_status = kGradeMissingFunction;
+            } else if (!std::isfinite(original_chance) ||
+                       original_chance < 0.0f || original_chance > 1.0f) {
+                grade_status = kGradeInvalidLaunchChance;
+            } else {
+                alignas(16) float location[4] = {NAN, NAN, NAN, 1.0f};
+                g_get_location(actor, location);
+                location_x = location[0];
+                location_y = location[1];
+                location_z = location[2];
+                if (!std::isfinite(location_x) || !std::isfinite(location_y) ||
+                    !std::isfinite(location_z)) {
+                    grade_status = kGradeNonfiniteLocation;
+                } else {
+                    distance = g_get_distance(location);
+                    if (!std::isfinite(distance)) {
+                        grade_status = kGradeNonfiniteDistance;
+                    } else if (distance < 0.0f) {
+                        grade_status = kGradeNegativeDistance;
+                    } else {
+                        grade = g_translate_grade(original_chance, distance);
+                        grade_status = valid_grade_index(grade)
+                            ? kGradeValid : kGradeIndexOutOfRange;
+                    }
+                }
+            }
         }
 
         modified = map_timing_probability(timing, grade, &applied_chance);
@@ -270,8 +359,12 @@ static void balanced_dice_proxy(void *actor, void *ball, int32_t shot_type,
         store_float(g_probability_last_original_bits, original_chance);
         store_float(g_probability_last_applied_bits, applied_chance);
         store_float(g_probability_last_distance_bits, distance);
+        store_float(g_probability_last_location_x_bits, location_x);
+        store_float(g_probability_last_location_y_bits, location_y);
+        store_float(g_probability_last_location_z_bits, location_z);
         g_probability_last_grade.store(grade, std::memory_order_relaxed);
         g_probability_last_timing.store(timing, std::memory_order_relaxed);
+        g_probability_last_grade_status.store(grade_status, std::memory_order_relaxed);
     }
 
     const BalancedDiceFn original = g_original_balanced_dice;
@@ -677,13 +770,33 @@ static GLenum capture_gl_error(int stage) {
     }
     return error;
 }
-static void capture_pre_overlay_gl_error(int stage) {
+static const char *gl_error_name(int32_t code) {
+    switch (static_cast<GLenum>(code)) {
+        case GL_NO_ERROR: return "GL_NO_ERROR";
+        case GL_INVALID_ENUM: return "GL_INVALID_ENUM";
+        case GL_INVALID_VALUE: return "GL_INVALID_VALUE";
+        case GL_INVALID_OPERATION: return "GL_INVALID_OPERATION";
+        case GL_OUT_OF_MEMORY: return "GL_OUT_OF_MEMORY";
+        case GL_INVALID_FRAMEBUFFER_OPERATION: return "GL_INVALID_FRAMEBUFFER_OPERATION";
+        default: return code < 0 ? "NOT_RECORDED" : "OTHER_GL_ERROR";
+    }
+}
+static void capture_pre_overlay_gl_error(int stage, uint32_t frame,
+                                         EGLDisplay display, EGLSurface surface) {
     const GLenum error = glGetError();
     if (error == GL_NO_ERROR) return;
+    const EGLContext context = eglGetCurrentContext();
+    const uint32_t sequence = g_gl_pre_overlay_sequence.fetch_add(
+        1, std::memory_order_relaxed) + 1;
     g_gl_external_error_code.store(static_cast<int32_t>(error), std::memory_order_relaxed);
     g_gl_pre_overlay_error_count.fetch_add(1, std::memory_order_relaxed);
-    LOGI("pre-existing game OpenGL error 0x%x before overlay at stage %d",
-         static_cast<unsigned>(error), stage);
+    g_gl_pre_overlay_last_frame.store(frame, std::memory_order_relaxed);
+    g_gl_pre_overlay_context.store(reinterpret_cast<uintptr_t>(context), std::memory_order_relaxed);
+    g_gl_pre_overlay_display.store(reinterpret_cast<uintptr_t>(display), std::memory_order_relaxed);
+    g_gl_pre_overlay_surface.store(reinterpret_cast<uintptr_t>(surface), std::memory_order_relaxed);
+    LOGI("pre-existing game OpenGL error 0x%x (%s) before overlay at stage %d frame %u sequence %u context %p",
+         static_cast<unsigned>(error), gl_error_name(static_cast<int32_t>(error)),
+         stage, frame, sequence, reinterpret_cast<void *>(context));
 }
 
 static void replace_all(std::string &value, const char *from, const char *to) {
@@ -1879,6 +1992,36 @@ static void capture_swap_diagnostics(EGLDisplay display, EGLSurface surface) {
             set_gl_string(g_gl_vendor, sizeof(g_gl_vendor), glGetString(GL_VENDOR));
             set_gl_string(g_glsl_version, sizeof(g_glsl_version),
                           glGetString(GL_SHADING_LANGUAGE_VERSION));
+            const char *versionText = reinterpret_cast<const char *>(version);
+            if (strstr(versionText, "OpenGL ES 3.") != nullptr) {
+                GLint extensionCount = 0;
+                glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
+                if (extensionCount >= 0 && extensionCount <= 8192) {
+                    bool hasKhrDebug = false;
+                    for (GLint i = 0; i < extensionCount; ++i) {
+                        const GLubyte *extension = glGetStringi(
+                            GL_EXTENSIONS, static_cast<GLuint>(i));
+                        if (extension &&
+                            strcmp(reinterpret_cast<const char *>(extension),
+                                   "GL_KHR_debug") == 0) {
+                            hasKhrDebug = true;
+                            break;
+                        }
+                    }
+                    g_gl_khr_debug_extension_status.store(
+                        hasKhrDebug ? 1 : 0, std::memory_order_relaxed);
+                    const auto debugCallbackProc = hasKhrDebug
+                        ? eglGetProcAddress("glDebugMessageCallbackKHR") : nullptr;
+                    g_gl_khr_debug_callback_proc_available.store(
+                        debugCallbackProc ? 1U : 0U, std::memory_order_relaxed);
+                } else {
+                    g_gl_khr_debug_extension_status.store(-1, std::memory_order_relaxed);
+                    g_gl_khr_debug_callback_proc_available.store(0, std::memory_order_relaxed);
+                }
+            } else {
+                g_gl_khr_debug_extension_status.store(-1, std::memory_order_relaxed);
+                g_gl_khr_debug_callback_proc_available.store(0, std::memory_order_relaxed);
+            }
         } else {
             g_gl_identity_captured.store(0, std::memory_order_release);
         }
@@ -1896,7 +2039,7 @@ static EGLBoolean swap_proxy(EGLDisplay display, EGLSurface surface) {
     if (g_component && g_anchor_valid.load(std::memory_order_acquire) != 0 &&
         (g_tracked_player.load(std::memory_order_relaxed) != 0 ||
          g_result_sequence.load(std::memory_order_relaxed) != 0))
-        capture_pre_overlay_gl_error(170);
+        capture_pre_overlay_gl_error(170, frame, display, surface);
     draw_overlay(display, surface);
     return g_original_swap ? g_original_swap(display, surface) : EGL_FALSE;
 }
@@ -1969,19 +2112,25 @@ static void write_diagnostic(void) {
         "gl_version=%s\ngl_renderer=%s\ngl_vendor=%s\nglsl_version=%s\n"
         "gl_init_stage=%d\ngl_error_code=%d\ngl_error_count=%u\n"
         "gl_last_error_stage=%d\ngl_pre_overlay_error_count=%u\ngl_pre_overlay_error_code=%d\n"
+        "gl_pre_overlay_error_name=%s\ngl_pre_overlay_last_sequence=%u\ngl_pre_overlay_last_frame=%u\n"
+        "gl_pre_overlay_last_context=%p\ngl_pre_overlay_last_display=%p\ngl_pre_overlay_last_surface=%p\n"
+        "gl_khr_debug_extension_status=%d\ngl_khr_debug_callback_proc_available=%u\n"
+        "gl_khr_debug_callback_registration=NOT_REGISTERED_TO_PRESERVE_GAME_CALLBACK_STATE\n"
         "vertex_shader_status=%d\nfragment_shader_status=%d\nprogram_link_status=%d\n"
         "shader_log=%s\ngl_draw_error_code=%d\ngl_draw_error_count=%u\n"
         "gl_init_attempts=%u\n"
         "probability_feature=GRADE_AWARE_CHANCE_REMAP_V2\n"
         "probability_mapping=1:0,2:grade,3:0.97,4:grade,5:0\n"
         "probability_map_self_test_status=%s\nprobability_map_self_test_cases=%u\n"
+        "probability_grade_validation_self_test_status=%s\nprobability_grade_validation_self_test_cases=%u\n"
         "probability_grade_order=F,D-,D,D+,C-,C,C+,B-,B,B+,A-,A,A+\n"
         "probability_hooks_enabled=%u\nprobability_status=%s\n"
         "probability_hook_address=%p\nprobability_hook_code=%d\n"
         "probability_hook_calls=%u\nprobability_modified_shots=%u\n"
         "probability_invalid_context=%u\nlast_original_launch_chance=%.7g\n"
         "last_applied_launch_chance=%.7g\nlast_grade_distance=%.7g\n"
-        "last_grade_index=%d\nlast_grade_timing_enum=%d\n"
+        "last_grade_index=%d\nlast_grade_timing_enum=%d\nlast_grade_status=%s\n"
+        "last_grade_location_x=%.7g\nlast_grade_location_y=%.7g\nlast_grade_location_z=%.7g\n"
         "shot_feedback_probability_storage_modified=0\n"
         "status=%s\n",
         g_game_name, kComponentSymbol, (const void *)g_component,
@@ -2018,11 +2167,20 @@ static void write_diagnostic(void) {
         g_gl_init_stage.load(), g_gl_error_code.load(), g_gl_error_count.load(),
         g_gl_last_error_stage.load(), g_gl_pre_overlay_error_count.load(),
         g_gl_external_error_code.load(),
+        gl_error_name(g_gl_external_error_code.load()),
+        g_gl_pre_overlay_sequence.load(), g_gl_pre_overlay_last_frame.load(),
+        reinterpret_cast<void *>(g_gl_pre_overlay_context.load()),
+        reinterpret_cast<void *>(g_gl_pre_overlay_display.load()),
+        reinterpret_cast<void *>(g_gl_pre_overlay_surface.load()),
+        g_gl_khr_debug_extension_status.load(),
+        g_gl_khr_debug_callback_proc_available.load(),
         g_gl_vertex_status.load(), g_gl_fragment_status.load(), g_gl_link_status.load(),
         glShaderLog, g_gl_draw_error_code.load(), g_gl_draw_error_count.load(),
         g_gl_init_attempts.load(),
         g_probability_map_self_test_pass.load() ? "PASS" : "FAIL",
         g_probability_map_self_test_cases.load(),
+        g_probability_grade_validation_self_test_pass.load() ? "PASS" : "FAIL",
+        g_probability_grade_validation_self_test_cases.load(),
         g_probability_enabled.load(std::memory_order_acquire),
         g_probability_enabled.load(std::memory_order_acquire)
             ? "GRADE_AWARE_OVERRIDE_ACTIVE" : "PROBABILITY_HOOK_NOT_INSTALLED",
@@ -2033,6 +2191,10 @@ static void write_diagnostic(void) {
         load_float(g_probability_last_applied_bits),
         load_float(g_probability_last_distance_bits),
         g_probability_last_grade.load(), g_probability_last_timing.load(),
+        probability_grade_status_name(g_probability_last_grade_status.load()),
+        load_float(g_probability_last_location_x_bits),
+        load_float(g_probability_last_location_y_bits),
+        load_float(g_probability_last_location_z_bits),
         status);
     const size_t used = strnlen(body, sizeof(body));
     if (used >= sizeof(body)) { LOGE("diagnostic buffer truncated"); return; }
@@ -2085,6 +2247,13 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
     const bool probability_map_ok = probability_mapping_self_test(&probability_cases);
     g_probability_map_self_test_pass.store(probability_map_ok ? 1U : 0U, std::memory_order_release);
     g_probability_map_self_test_cases.store(probability_cases, std::memory_order_release);
+    uint32_t grade_validation_cases = 0;
+    const bool grade_validation_ok =
+        grade_validation_self_test(&grade_validation_cases);
+    g_probability_grade_validation_self_test_pass.store(
+        grade_validation_ok ? 1U : 0U, std::memory_order_release);
+    g_probability_grade_validation_self_test_cases.store(
+        grade_validation_cases, std::memory_order_release);
     g_self_base = invoke_test(5);
     void *test_original = nullptr;
     g_self_code = DobbyHook((void *)&test_target, (void *)&test_proxy, &test_original);
@@ -2139,7 +2308,8 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
             g_probability_hook_code = DobbyHook(g_balanced_dice_address,
                 (void *)&balanced_dice_proxy, &original_balanced);
             g_original_balanced_dice = reinterpret_cast<BalancedDiceFn>(original_balanced);
-            if (g_probability_hook_code == 0 && g_original_balanced_dice && probability_map_ok) {
+            if (g_probability_hook_code == 0 && g_original_balanced_dice &&
+                probability_map_ok && grade_validation_ok) {
                 g_probability_enabled.store(1, std::memory_order_release);
             } else {
                 g_probability_enabled.store(0, std::memory_order_release);
