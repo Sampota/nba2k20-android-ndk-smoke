@@ -2050,7 +2050,7 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
     LOGI("v66 embedded Green Giant audio init=%s code=%d", sound_ready ? "ready" : "unavailable", g_sound_init_code.load());
     g_init_state.store(2, std::memory_order_release);
     
-LOGI("v66 clean release agent attached; probability_hook_code=%d enabled=%u",
+LOGI("shotmeter.dobby-v66-clean-release attached; probability_hook_code=%d enabled=%u",
          g_probability_hook_code, g_probability_enabled.load());
     return JNI_OK;
 }
