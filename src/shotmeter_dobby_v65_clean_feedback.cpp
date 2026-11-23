@@ -16,7 +16,6 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <cstdlib>
 #include <string>
 #include <time.h>
 
@@ -960,8 +959,7 @@ static bool draw_claude_flame(int surfaceH,int anchorX,int anchorY,float scale,f
     if(power<=0.001f||alpha<=0.002f)return false;
     const float px=kClaudeFlameSizeFrac*static_cast<float>(surfaceH);
     if(px<2.0f)return false;
-    /* Claude's base position (design x=118,y=40) remains tied to the projected head,
-       not to the newly shifted meter. */
+    /* Keep the flame anchored to the projected head, independent of meter shift. */
     const float axisX=static_cast<float>(anchorX); // center on projected player head
     const float baseY=static_cast<float>(anchorY)+51.0f*scale;
     store_float(g_flame_axis_x_bits, axisX);
