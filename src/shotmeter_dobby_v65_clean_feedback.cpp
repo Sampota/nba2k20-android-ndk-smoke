@@ -2243,21 +2243,21 @@ static void write_diagnostic(void) {
     }
     size_t appended = used + static_cast<size_t>(extra);
     int detail = snprintf(body + appended, sizeof(body) - appended,
-        "gl_pre_overlay_sample_count=%u\\ngl_pre_overlay_sampling_interval_frames=60\\n"
-        "projection_invalid_count=%u\\nrelease_suspected_duplicate_candidates=%u\\n"
-        "perfect_fire_draw_failures=%u\\n",
+        "gl_pre_overlay_sample_count=%u\ngl_pre_overlay_sampling_interval_frames=60\n"
+        "projection_invalid_count=%u\nrelease_suspected_duplicate_candidates=%u\n"
+        "perfect_fire_draw_failures=%u\n",
         g_gl_pre_overlay_sample_count.load(), g_projection_invalid.load(),
         g_suspected_duplicate_release_events.load(), g_perfect_fire_draw_failures.load());
     if (detail < 0 || static_cast<size_t>(detail) >= sizeof(body) - appended) return;
     appended += static_cast<size_t>(detail);
     for (int timing = 1; timing <= 5; ++timing) {
         detail = snprintf(body + appended, sizeof(body) - appended,
-            "probability_timing_%d_calls=%u\\nprobability_timing_%d_invalid_context=%u\\n"
-            "probability_timing_%d_last_grade_index=%d\\nprobability_timing_%d_last_grade_status=%s\\n"
-            "probability_timing_%d_last_original_chance=%.7g\\n"
-            "probability_timing_%d_last_applied_chance=%.7g\\n"
-            "probability_timing_%d_last_grade_distance=%.7g\\n"
-            "release_timing_%d_count=%u\\n",
+            "probability_timing_%d_calls=%u\nprobability_timing_%d_invalid_context=%u\n"
+            "probability_timing_%d_last_grade_index=%d\nprobability_timing_%d_last_grade_status=%s\n"
+            "probability_timing_%d_last_original_chance=%.7g\n"
+            "probability_timing_%d_last_applied_chance=%.7g\n"
+            "probability_timing_%d_last_grade_distance=%.7g\n"
+            "release_timing_%d_count=%u\n",
             timing, g_probability_timing_calls[timing].load(),
             timing, g_probability_timing_invalid_context[timing].load(),
             timing, g_probability_timing_last_grade[timing].load(),
@@ -2271,8 +2271,8 @@ static void write_diagnostic(void) {
     }
     for (int grade = 0; grade < 13; ++grade) {
         detail = snprintf(body + appended, sizeof(body) - appended,
-            "probability_slight_early_grade_%d_count=%u\\n"
-            "probability_slight_late_grade_%d_count=%u\\n",
+            "probability_slight_early_grade_%d_count=%u\n"
+            "probability_slight_late_grade_%d_count=%u\n",
             grade, g_probability_grade_index_counts[0][grade].load(),
             grade, g_probability_grade_index_counts[1][grade].load());
         if (detail < 0 || static_cast<size_t>(detail) >= sizeof(body) - appended) return;
