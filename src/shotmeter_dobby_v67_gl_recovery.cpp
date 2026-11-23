@@ -23,6 +23,7 @@
 #include "greengiant_ima_b64.h"
 #include "../Files/horn_font_atlas.h"
 
+// v67 CI output-path verification was corrected in the companion workflow.
 #define LOG_TAG "ShotmeterDobbyV67"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
