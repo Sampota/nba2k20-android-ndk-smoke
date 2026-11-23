@@ -16,10 +16,11 @@ Date: 2026-11-23
 - Green flame remains horizontally centered on the projected player head. Its vertical base offset changes from 8.0 to 48.0 design units in the positive GL-Y direction, lifting the flame approximately 20 screen pixels at 720p scale so it should hover above the head like a halo.
 - Meter horizontal shift remains 90.0 design units. No meter-placement changes were made.
 - Shot timing, release classification, probability mapping, audio, GL state handling, and diagnostic writer are carried forward unchanged.
-- **New planned investigation from the v63 live-shot diagnostic:** `last_grade_distance=nan` and `last_grade_index=-1` were observed even though `probability_modified_shots=1` and the probability hook applied a launch chance. Treat this as an unresolved grade-distance/index calculation or input-validity issue, not as a proven root cause.
-- Trace the grade-distance calculation inputs and intermediate values for a real release; identify the exact source of the non-finite value (including any invalid vector, denominator, or uninitialized context if applicable). Add finite/range guards before using the distance or grade index, and make invalid-grade handling explicit in diagnostics.
-- Add a focused self-test covering valid grade distances and invalid/non-finite inputs. Do not silently substitute a grade or change the chance mapping to hide the failure. Preserve the existing mapping unless investigation proves a narrowly scoped correction is required.
-- Keep the probability feature marked as not fully validated until a live shot reports a finite grade distance and valid grade index, with the applied chance consistent with the intended mapping.
+- **Investigation finding:** the v63 sample that showed `last_grade_distance=nan` and `last_grade_index=-1` was an Excellent release (timing class 3). The current probability logic intentionally calculates a grade only for Slight Early/Late (classes 2 and 4); Very Early, Excellent, and Very Late (classes 1, 3, and 5) do not need a grade. Therefore, the class-3 NaN/-1 pair is the unused sentinel state, not proof of a failed distance calculation.
+- v64 now reports `last_grade_status` explicitly. A class-3 release should report `NOT_REQUIRED_FOR_TIMING_CLASS`; classes 2/4 must report a validated grade or a specific failure reason. The diagnostic also records player-location XYZ, basket distance, grade index, and timing class.
+- v64 validates location coordinates, finite/non-negative basket distance, and grade index range 0..12 before applying a grade-aware chance. If a class-2/4 input is invalid, the original launch chance is passed through unchanged; no substitute grade is invented.
+- A separate 10-case grade-validation self-test covers valid/invalid distances (including NaN and infinities) and grade-index bounds. The existing probability mapping remains unchanged; both self-tests must pass before the probability hook is enabled.
+- Runtime probability validation remains pending until on-device Slight Early and Slight Late shots show finite location/distance, a valid grade index, and a chance matching the existing mapping. Excellent shots should be checked separately and are expected not to require a grade.
 
 ## Validation status
 
@@ -31,7 +32,7 @@ On-device checks:
 3. Confirm the green flame sits above the hairline without covering the head.
 4. Confirm meter placement remains unchanged and no overlay GL draw errors appear.
 5. Compare diagnostic flame base and meter coordinates with the v63 baseline.
-6. Capture the grade-distance inputs/intermediates for a live shot; verify finite distance, valid grade index, and correct chance mapping. Confirm invalid inputs are safely rejected and diagnosed.
+6. Capture Excellent, Slight Early, and Slight Late shots separately. Excellent should report `NOT_REQUIRED_FOR_TIMING_CLASS`; classes 2/4 should report finite XYZ and basket distance plus grade index 0..12. Confirm the mapped chance matches the existing table and invalid inputs preserve the original chance with an explicit failure status.
 
 Keep v63 and v62 artifacts untouched as rollback options.
 
@@ -48,17 +49,19 @@ separately. Do not relabel the pre-overlay error as an overlay failure.
 Investigation plan (diagnostic-first; no speculative game-state or GL changes):
 
 1. Preserve separate counters and codes for errors found before overlay work,
-   overlay initialization, and overlay draw/restore checkpoints. Record the
-   EGL context identity and frame/sample sequence alongside each observation.
+   overlay initialization, and overlay draw/restore checkpoints. v64 records
+   the pre-overlay error sequence, swap-frame number, EGL context, display,
+   and surface when an error is observed.
 2. Add a controlled A/B capture: same game scene and actions with the overlay
    detached/disabled, then with v64 attached. Compare frequency and timing.
-   If 1280 occurs with the overlay absent, that establishes an independent
-   game-side source for that test; if it occurs only with v64, investigate
-   overlay interaction without assuming causation from timing alone.
-3. Check whether `GL_KHR_debug` (or a compatible debug-output extension) is
-   advertised by the active GLES context. If available, register a diagnostic
-   callback and capture source/type/id/severity/message plus frame/context.
-   Do not assume the extension exists on this device.
+   The existing `glGetError()` sample is consumed by the observer, so document
+   that observer effect and do not treat the sample as a non-invasive trace.
+3. v64 checks for `GL_KHR_debug` using the GLES 3 extension list and records
+   whether `glDebugMessageCallbackKHR` is available through
+   `eglGetProcAddress`. The normal v64 agent does **not** register a callback:
+   doing so could replace a callback already owned by the game. Any callback
+   capture belongs in a separate opt-in diagnostic build with callback-state
+   ownership handled explicitly.
 4. If debug output is unavailable, use a separate opt-in diagnostic build to
    narrow the suspect game GL call sequence. Do not blindly poll
    `glGetError()` after every intercepted game call: that consumes the
@@ -79,3 +82,11 @@ without the overlay; and, where supported, debug output identifies the
 offending API/message. Until then, classify 1280 as an unresolved
 pre-overlay/game-side GL error, not a v64 regression.
 
+
+
+## v64 preparation implementation status
+
+- Grade-status diagnostics and the 10-case finite-distance/index validation self-test are implemented in the v64 source.
+- GL diagnostics now record pre-overlay error frame/sequence/context/display/surface and identify common GL error enums by name.
+- GLES 3 extension detection records `GL_KHR_debug` availability and callback entry-point availability. The regular agent leaves callback registration disabled to avoid taking over game-owned callback state.
+- CI must verify the v64 entry points and these diagnostic markers before the ARM64 artifact is accepted.
