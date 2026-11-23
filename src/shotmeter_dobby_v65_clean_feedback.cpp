@@ -85,6 +85,14 @@ static int g_probability_hook_code = -999;
 static std::atomic<uint32_t> g_probability_enabled{0};
 static std::atomic<uint32_t> g_probability_hook_calls{0}, g_probability_modified_shots{0};
 static std::atomic<uint32_t> g_probability_invalid_context{0};
+static std::atomic<uint32_t> g_probability_timing_calls[6]{};
+static std::atomic<uint32_t> g_probability_timing_invalid_context[6]{};
+static std::atomic<uint32_t> g_probability_grade_index_counts[2][13]{};
+static std::atomic<uint32_t> g_probability_timing_last_original_bits[6]{};
+static std::atomic<uint32_t> g_probability_timing_last_applied_bits[6]{};
+static std::atomic<uint32_t> g_probability_timing_last_distance_bits[6]{};
+static std::atomic<int32_t> g_probability_timing_last_grade[6]{};
+static std::atomic<int32_t> g_probability_timing_last_status[6]{};
 static std::atomic<uint32_t> g_probability_last_original_bits{0}, g_probability_last_applied_bits{0};
 static std::atomic<uint32_t> g_probability_last_distance_bits{0};
 static std::atomic<uint32_t> g_probability_last_location_x_bits{0};
@@ -101,9 +109,16 @@ static int g_do_draw_code = -999, g_swap_code = -999, g_release_event_code = -99
 static std::atomic<uint32_t> g_attach_calls{0}, g_duplicate_attach_calls{0};
 static std::atomic<uint32_t> g_init_state{0};
 static std::atomic<uint32_t> g_do_draw_calls{0}, g_projection_calls{0};
+static std::atomic<uint32_t> g_projection_invalid{0};
 static std::atomic<uint32_t> g_projection_valid{0}, g_swap_calls{0};
 static std::atomic<uint32_t> g_active_meter_frames{0}, g_draw_calls{0};
 static std::atomic<uint32_t> g_release_event_calls{0}, g_perfect_release_events{0}, g_perfect_flash_frames{0};
+static std::atomic<uint32_t> g_release_timing_counts[6]{};
+static std::atomic<uint32_t> g_suspected_duplicate_release_events{0};
+static std::atomic<uintptr_t> g_last_release_actor{0};
+static std::atomic<int32_t> g_last_release_signature_timing{-1};
+static std::atomic<uint32_t> g_last_release_signature_arg0{0}, g_last_release_signature_arg1{0};
+static std::atomic<uint64_t> g_last_release_signature_ns{0};
 static std::atomic<int32_t> g_last_release_timing{-1};
 static std::atomic<uint64_t> g_perfect_until_ns{0};
 static std::atomic<uint64_t> g_result_until_ns{0};
@@ -138,6 +153,7 @@ static std::atomic<int32_t> g_gl_init_stage{0}, g_gl_error_code{-1};
 static std::atomic<int32_t> g_gl_last_error_stage{-1};
 static std::atomic<uint32_t> g_gl_error_count{0}, g_gl_draw_error_count{0};
 static std::atomic<uint32_t> g_gl_pre_overlay_error_count{0};
+static std::atomic<uint32_t> g_gl_pre_overlay_sample_count{0};
 static std::atomic<uint32_t> g_gl_pre_overlay_sequence{0};
 static std::atomic<uint32_t> g_gl_pre_overlay_last_frame{0};
 static std::atomic<uintptr_t> g_gl_pre_overlay_context{0};
@@ -147,6 +163,7 @@ static std::atomic<int32_t> g_gl_khr_debug_extension_status{-1};
 static std::atomic<uint32_t> g_gl_khr_debug_callback_proc_available{0};
 static std::atomic<uint32_t> g_perfect_fire_trigger_count{0}, g_perfect_fire_draw_calls{0};
 static std::atomic<uint32_t> g_perfect_fire_frames{0}, g_perfect_fire_active{0};
+static std::atomic<uint32_t> g_perfect_fire_draw_failures{0};
 static std::atomic<int32_t> g_gl_vertex_status{-1}, g_gl_fragment_status{-1}, g_gl_link_status{-1};
 static std::atomic<int32_t> g_gl_draw_error_code{-1};
 static std::atomic<uint32_t> g_gl_init_attempts{0};
@@ -294,8 +311,22 @@ static bool grade_validation_self_test(uint32_t *case_count) {
         if (valid_grade_index(grades[i]) != expected_grade[i]) return false;
         ++checked;
     }
+    const float expected_chances[13] = {
+        0.000f, 0.005f, 0.010f, 0.020f, 0.025f,
+        0.035f, 0.050f, 0.100f, 0.175f, 0.250f,
+        0.350f, 0.510f, 0.670f
+    };
+    for (int32_t grade = 0; grade < 13; ++grade) {
+        if (!std::isfinite(kChanceByGrade[grade]) ||
+            kChanceByGrade[grade] < 0.0f || kChanceByGrade[grade] > 1.0f ||
+            std::fabs(kChanceByGrade[grade] - expected_chances[grade]) > 0.000001f)
+            return false;
+        if (grade > 0 && kChanceByGrade[grade] < kChanceByGrade[grade - 1])
+            return false;
+        ++checked;
+    }
     if (case_count) *case_count = checked;
-    return checked == 10;
+    return checked == 23;
 }
 
 __attribute__((noinline))
@@ -350,10 +381,21 @@ static void balanced_dice_proxy(void *actor, void *ball, int32_t shot_type,
 
         modified = map_timing_probability(timing, grade, &applied_chance);
         g_probability_hook_calls.fetch_add(1, std::memory_order_relaxed);
-        if (modified)
+        g_probability_timing_calls[timing].fetch_add(1, std::memory_order_relaxed);
+        if (modified) {
             g_probability_modified_shots.fetch_add(1, std::memory_order_relaxed);
-        else
+        } else {
             g_probability_invalid_context.fetch_add(1, std::memory_order_relaxed);
+            g_probability_timing_invalid_context[timing].fetch_add(1, std::memory_order_relaxed);
+        }
+        store_float(g_probability_timing_last_original_bits[timing], original_chance);
+        store_float(g_probability_timing_last_applied_bits[timing], applied_chance);
+        store_float(g_probability_timing_last_distance_bits[timing], distance);
+        g_probability_timing_last_grade[timing].store(grade, std::memory_order_relaxed);
+        g_probability_timing_last_status[timing].store(grade_status, std::memory_order_relaxed);
+        if ((timing == 2 || timing == 4) && grade_status == kGradeValid)
+            g_probability_grade_index_counts[timing == 2 ? 0 : 1][grade].fetch_add(
+                1, std::memory_order_relaxed);
 
         store_float(g_probability_last_original_bits, original_chance);
         store_float(g_probability_last_applied_bits, applied_chance);
@@ -415,6 +457,7 @@ static void capture_anchor(void *actor) {
         g_projection_valid.fetch_add(1, std::memory_order_relaxed);
         g_anchor_valid.store(1, std::memory_order_release);
     } else {
+        g_projection_invalid.fetch_add(1, std::memory_order_relaxed);
         g_anchor_valid.store(0, std::memory_order_release);
     }
 }
@@ -755,6 +798,7 @@ static const char *gl_error_name(int32_t code) {
 }
 static void capture_pre_overlay_gl_error(int stage, uint32_t frame,
                                          EGLDisplay display, EGLSurface surface) {
+    g_gl_pre_overlay_sample_count.fetch_add(1, std::memory_order_relaxed);
     const GLenum error = glGetError();
     if (error == GL_NO_ERROR) return;
     const EGLContext context = eglGetCurrentContext();
@@ -1411,7 +1455,10 @@ static void draw_horn(int surfaceW, int surfaceH, int anchorX, int anchorY,
 
     /* Claude's head-anchored noise flame draws after the meter and before feedback. */
     if (fireActive) {
-        (void)draw_claude_flame(surfaceH, anchorX, anchorY, scale, fireElapsed);
+        if (draw_claude_flame(surfaceH, anchorX, anchorY, scale, fireElapsed))
+            g_perfect_fire_draw_calls.fetch_add(1, std::memory_order_relaxed);
+        else
+            g_perfect_fire_draw_failures.fetch_add(1, std::memory_order_relaxed);
     }
 
     if (G.es3) glBindVertexArray(oldVao);
@@ -1800,6 +1847,28 @@ static void release_event_proxy(void *actor, int32_t timing, float arg0, float a
         state_before != 2 || timing < 1 || timing > 5) return;
 
     g_eligible_local_release_events.fetch_add(1, std::memory_order_relaxed);
+    g_release_timing_counts[timing].fetch_add(1, std::memory_order_relaxed);
+
+    uint32_t arg0Bits = 0, arg1Bits = 0;
+    memcpy(&arg0Bits, &arg0, sizeof(arg0Bits));
+    memcpy(&arg1Bits, &arg1, sizeof(arg1Bits));
+    const uint64_t eventNs = monotonic_ns();
+    const uintptr_t actorValue = reinterpret_cast<uintptr_t>(actor);
+    const bool sameSignature =
+        g_last_release_actor.load(std::memory_order_relaxed) == actorValue &&
+        g_last_release_signature_timing.load(std::memory_order_relaxed) == timing &&
+        g_last_release_signature_arg0.load(std::memory_order_relaxed) == arg0Bits &&
+        g_last_release_signature_arg1.load(std::memory_order_relaxed) == arg1Bits;
+    const uint64_t previousEventNs = g_last_release_signature_ns.load(std::memory_order_relaxed);
+    if (sameSignature && previousEventNs != 0 && eventNs >= previousEventNs &&
+        eventNs - previousEventNs <= 50000000ULL)
+        g_suspected_duplicate_release_events.fetch_add(1, std::memory_order_relaxed);
+    g_last_release_actor.store(actorValue, std::memory_order_relaxed);
+    g_last_release_signature_timing.store(timing, std::memory_order_relaxed);
+    g_last_release_signature_arg0.store(arg0Bits, std::memory_order_relaxed);
+    g_last_release_signature_arg1.store(arg1Bits, std::memory_order_relaxed);
+    g_last_release_signature_ns.store(eventNs, std::memory_order_relaxed);
+
     const float reference = load_float(g_perfect_raw_reference_bits);
     const float result_position = clamp_progress(raw_before, reference);
     store_float(g_release_raw_bits, raw_before);
@@ -1915,7 +1984,6 @@ static void draw_overlay(EGLDisplay display, EGLSurface surface) {
     const GLint ay = vp[1] + vp[3] - top_y;
     draw_horn(vp[2], vp[3], ax, ay, progress, perfect, resultTiming,
               fireActive, fireElapsed);
-    if (fireActive) g_perfect_fire_draw_calls.fetch_add(1, std::memory_order_relaxed);
     if (resultActive && resultTiming >= 1 && resultTiming <= 5) {
         const uint64_t resultStartNs = g_result_started_ns.load(std::memory_order_acquire);
         const float elapsed = (resultStartNs > 0 && now >= resultStartNs)
@@ -1999,15 +2067,15 @@ static void capture_swap_diagnostics(EGLDisplay display, EGLSurface surface) {
 __attribute__((noinline))
 static EGLBoolean swap_proxy(EGLDisplay display, EGLSurface surface) {
     const uint32_t frame = g_swap_calls.fetch_add(1, std::memory_order_relaxed) + 1;
-    /* One sample immediately, then about once per 60 rendered frames. */
-    if (frame == 1 || (frame % 60u) == 0u)
-        capture_swap_diagnostics(display, surface);
-    // Sample the GL error state before our overlay touches GL. This separates
-    // errors already pending from the game from errors introduced by overlay work.
+    // glGetError consumes the pending flag, so sample sparsely and before our
+    // own GL state queries. This identifies a pre-diagnostic error, not its caller.
     if (g_component && g_anchor_valid.load(std::memory_order_acquire) != 0 &&
+        (frame == 1 || (frame % 60u) == 0u) &&
         (g_tracked_player.load(std::memory_order_relaxed) != 0 ||
          g_result_sequence.load(std::memory_order_relaxed) != 0))
         capture_pre_overlay_gl_error(170, frame, display, surface);
+    if (frame == 1 || (frame % 60u) == 0u)
+        capture_swap_diagnostics(display, surface);
     draw_overlay(display, surface);
     return g_original_swap ? g_original_swap(display, surface) : EGL_FALSE;
 }
@@ -2173,12 +2241,49 @@ static void write_diagnostic(void) {
     if (extra < 0 || static_cast<size_t>(extra) >= sizeof(body) - used) {
         LOGE("diagnostic coordinate append failed"); return;
     }
+    size_t appended = used + static_cast<size_t>(extra);
+    int detail = snprintf(body + appended, sizeof(body) - appended,
+        "gl_pre_overlay_sample_count=%u\\ngl_pre_overlay_sampling_interval_frames=60\\n"
+        "projection_invalid_count=%u\\nrelease_suspected_duplicate_candidates=%u\\n"
+        "perfect_fire_draw_failures=%u\\n",
+        g_gl_pre_overlay_sample_count.load(), g_projection_invalid.load(),
+        g_suspected_duplicate_release_events.load(), g_perfect_fire_draw_failures.load());
+    if (detail < 0 || static_cast<size_t>(detail) >= sizeof(body) - appended) return;
+    appended += static_cast<size_t>(detail);
+    for (int timing = 1; timing <= 5; ++timing) {
+        detail = snprintf(body + appended, sizeof(body) - appended,
+            "probability_timing_%d_calls=%u\\nprobability_timing_%d_invalid_context=%u\\n"
+            "probability_timing_%d_last_grade_index=%d\\nprobability_timing_%d_last_grade_status=%s\\n"
+            "probability_timing_%d_last_original_chance=%.7g\\n"
+            "probability_timing_%d_last_applied_chance=%.7g\\n"
+            "probability_timing_%d_last_grade_distance=%.7g\\n"
+            "release_timing_%d_count=%u\\n",
+            timing, g_probability_timing_calls[timing].load(),
+            timing, g_probability_timing_invalid_context[timing].load(),
+            timing, g_probability_timing_last_grade[timing].load(),
+            timing, probability_grade_status_name(g_probability_timing_last_status[timing].load()),
+            timing, load_float(g_probability_timing_last_original_bits[timing]),
+            timing, load_float(g_probability_timing_last_applied_bits[timing]),
+            timing, load_float(g_probability_timing_last_distance_bits[timing]),
+            timing, g_release_timing_counts[timing].load());
+        if (detail < 0 || static_cast<size_t>(detail) >= sizeof(body) - appended) return;
+        appended += static_cast<size_t>(detail);
+    }
+    for (int grade = 0; grade < 13; ++grade) {
+        detail = snprintf(body + appended, sizeof(body) - appended,
+            "probability_slight_early_grade_%d_count=%u\\n"
+            "probability_slight_late_grade_%d_count=%u\\n",
+            grade, g_probability_grade_index_counts[0][grade].load(),
+            grade, g_probability_grade_index_counts[1][grade].load());
+        if (detail < 0 || static_cast<size_t>(detail) >= sizeof(body) - appended) return;
+        appended += static_cast<size_t>(detail);
+    }
     char tempPath[288];
     const int tempLen = snprintf(tempPath, sizeof(tempPath), "%s.tmp", path);
     if (tempLen <= 0 || static_cast<size_t>(tempLen) >= sizeof(tempPath)) return;
     const int fd = open(tempPath, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     if (fd < 0) { LOGE("diagnostic temp open failed errno=%d", errno); return; }
-    const size_t len = used + static_cast<size_t>(extra);
+    const size_t len = appended;
     size_t offset = 0;
     bool ok = true;
     while (offset < len) {
@@ -2292,6 +2397,10 @@ Agent_OnAttach(JavaVM *vm, char *, void *) {
     }
 
     store_float(g_perfect_raw_reference_bits, kPerfectRawInitial);
+    for (int timing = 1; timing <= 5; ++timing) {
+        g_probability_timing_last_grade[timing].store(-1, std::memory_order_relaxed);
+        g_probability_timing_last_status[timing].store(kGradeNotRequired, std::memory_order_relaxed);
+    }
     const bool sound_ready = initialize_sound();
     if (sound_ready) {
         pthread_t sound_thread;
