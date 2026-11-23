@@ -934,7 +934,7 @@ static bool draw_claude_flame(int surfaceH,int anchorX,int anchorY,float scale,f
     glUseProgram(G.flameProg);glUniform2f(G.fOrigin,axisX,y0);glUniform1f(G.fPx,px);
     glUniform1f(G.fTime,age);glUniform1f(G.fPower,power);glUniform1f(G.fFlash,flash);glUniform1f(G.fAlpha,alpha);
     glDrawArrays(GL_TRIANGLE_STRIP,0,4);
-    const GLenum err=
+    const GLenum err = glGetError();
     if(G.es3)glBindSampler(0,static_cast<GLuint>(oldSampler));
     glBindTexture(GL_TEXTURE_2D,static_cast<GLuint>(oldTex));glActiveTexture(oldActive);
     glViewport(oldVp[0],oldVp[1],oldVp[2],oldVp[3]);
@@ -1223,7 +1223,7 @@ static int init_horn_gl(void) {
         static const uint8_t blank[84 * 16 * 4] = {};
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 84, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, blank);
     }
-    const GLenum resourceError = 
+    const GLenum resourceError = glGetError();
     if (!G.vbo || !G.labelTex || (G.es3 && !G.vao) || resourceError != GL_NO_ERROR) {
         set_shader_log("GL resource setup failed; inspect gl_error_code and gl_init_stage");
         if (G.vbo) glDeleteBuffers(1, &G.vbo);
@@ -1398,12 +1398,6 @@ static void draw_horn(int surfaceW, int surfaceH, int anchorX, int anchorY,
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
     }
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    const GLenum drawError = 
-    if (drawError != GL_NO_ERROR) {
-        g_gl_draw_error_code.store(static_cast<int32_t>(drawError), std::memory_order_relaxed);
-        g_gl_draw_error_count.fetch_add(1, std::memory_order_relaxed);
-    }
-
     /* Claude's head-anchored noise flame draws after the meter and before feedback. */
     if (fireActive) {
         if (draw_claude_flame(surfaceH, anchorX, anchorY, scale, fireElapsed))
@@ -1569,10 +1563,6 @@ static void draw_banner(int viewportX, int viewportY, int surfaceW, int surfaceH
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
     }
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    const GLenum drawError = 
-    if (drawError == GL_NO_ERROR)
-        g_banner_draw_calls.fetch_add(1, std::memory_order_relaxed);
-
     if (G.es3) {
         glBindVertexArray(oldVao);
         glBindSampler(0, oldSampler);
