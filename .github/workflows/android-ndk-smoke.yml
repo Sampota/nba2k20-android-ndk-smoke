@@ -163,7 +163,7 @@ jobs:
             echo "Single-file ShadowHook agent unexpectedly depends on libshadowhook.so" >&2
             exit 1
           fi
-          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$DOBBY_AGENT_V53" "$DOBBY_AGENT_V54" "$DOBBY_AGENT_V55" "$DOBBY_AGENT_V56" "$DOBBY_AGENT_V57" "$DOBBY_AGENT_V59" "$DOBBY_AGENT_V61" "$DOBBY_AGENT_V62" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
+          if readelf -d "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$DOBBY_AGENT_V53" "$DOBBY_AGENT_V54" "$DOBBY_AGENT_V55" "$DOBBY_AGENT_V56" "$DOBBY_AGENT_V57" "$DOBBY_AGENT_V59" "$DOBBY_AGENT_V61" "$DOBBY_AGENT_V62" "$DOBBY_AGENT_V64" | grep -E 'lib(dobby|shadowhook|c\+\+_shared)\.so'; then
             echo "Dobby diagnostic agent unexpectedly has a separate hook-engine or shared C++ dependency" >&2
             exit 1
           fi
