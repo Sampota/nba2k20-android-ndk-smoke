@@ -1,4 +1,5 @@
 name: Android NDK ARM64 smoke test and read-only capture probe
+# v66 clean-release build revision
 # v53 validation: strict ARM64 build, symbol, and artifact checks.
 # Triggered against the v52 baseline branch for reproducible CI validation.
 
