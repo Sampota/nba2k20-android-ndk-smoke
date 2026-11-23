@@ -116,6 +116,7 @@ jobs:
           DOBBY_AGENT_V64="build-android/libshotmeter-v64.so"
           DOBBY_AGENT_V65="build-android/libshotmeter-v65.so"
           DOBBY_AGENT_V66="build-android/libshotmeter-v66.so"
+          DOBBY_AGENT_V67="build-android/libshotmeter-v67.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
@@ -149,10 +150,11 @@ jobs:
           test -s "$DOBBY_AGENT_V64"
           test -s "$DOBBY_AGENT_V65"
           test -s "$DOBBY_AGENT_V66"
+          test -s "$DOBBY_AGENT_V67"
           test -n "$SHADOWHOOK"
           test -s "$SHADOWHOOK"
 
-          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$DOBBY_AGENT_V53" "$DOBBY_AGENT_V54" "$DOBBY_AGENT_V55" "$DOBBY_AGENT_V56" "$DOBBY_AGENT_V57" "$DOBBY_AGENT_V58" "$DOBBY_AGENT_V59" "$DOBBY_AGENT_V61" "$DOBBY_AGENT_V62" "$DOBBY_AGENT_V63" "$DOBBY_AGENT_V64" "$DOBBY_AGENT_V65" "$DOBBY_AGENT_V66" "$SHADOWHOOK"; do
+          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$DOBBY_AGENT_V53" "$DOBBY_AGENT_V54" "$DOBBY_AGENT_V55" "$DOBBY_AGENT_V56" "$DOBBY_AGENT_V57" "$DOBBY_AGENT_V58" "$DOBBY_AGENT_V59" "$DOBBY_AGENT_V61" "$DOBBY_AGENT_V62" "$DOBBY_AGENT_V63" "$DOBBY_AGENT_V64" "$DOBBY_AGENT_V65" "$DOBBY_AGENT_V66" "$DOBBY_AGENT_V67" "$SHADOWHOOK"; do
             echo "=== $LIB ==="
             file "$LIB"
             readelf -h "$LIB" | grep -E 'Class:|Machine:'
@@ -319,6 +321,8 @@ jobs:
           readelf --dyn-syms --wide "$DOBBY_AGENT_V65" | grep -F 'Agent_OnUnload'
           readelf --dyn-syms --wide "$DOBBY_AGENT_V66" | grep -F 'Agent_OnAttach'
           readelf --dyn-syms --wide "$DOBBY_AGENT_V66" | grep -F 'Agent_OnUnload'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V67" | grep -F 'Agent_OnAttach'
+          readelf --dyn-syms --wide "$DOBBY_AGENT_V67" | grep -F 'Agent_OnUnload'
           strings "$DOBBY_AGENT_V64" | grep -F 'shotmeter.dobby-v64-halo-flame-diagnostic'
           strings "$DOBBY_AGENT_V64" | grep -F 'feedback_gap_design=4.0'
           strings "$DOBBY_AGENT_V64" | grep -F 'flame_vertical_base_offset_design=48.0_above_projected_head'
@@ -337,6 +341,9 @@ jobs:
           strings "$DOBBY_AGENT_V65" | grep -F 'Dobby'
           strings "$DOBBY_AGENT_V66" | grep -F 'shotmeter.dobby-v66-clean-release'
           strings "$DOBBY_AGENT_V66" | grep -F 'Dobby'
+          strings "$DOBBY_AGENT_V67" | grep -F 'shotmeter.dobby-v67-gl-recovery'
+          strings "$DOBBY_AGENT_V67" | grep -F 'shotmeter.dobby-v67-gl-recovery attached'
+          strings "$DOBBY_AGENT_V67" | grep -F 'Dobby'
           if strings "$DOBBY_AGENT_V66" | grep -E 'diagnostic temp|gl_pre_overlay|pre-existing game OpenGL error|probability_timing_%d_calls|reporter thread'; then
             echo "v66 unexpectedly contains diagnostic reporting strings" >&2
             exit 1
@@ -384,6 +391,7 @@ jobs:
           cp "$DOBBY_AGENT_V64" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V65" build-android/artifacts/arm64-v8a/
           cp "$DOBBY_AGENT_V66" build-android/artifacts/arm64-v8a/libshotmeter.so
+          cp "$DOBBY_AGENT_V67" build-android/artifacts/arm64-v8a/libshotmeter-v67.so
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Upload Android ARM64 smoke-test artifact
