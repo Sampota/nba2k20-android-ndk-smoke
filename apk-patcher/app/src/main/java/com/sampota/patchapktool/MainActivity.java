@@ -409,7 +409,13 @@ public class MainActivity extends Activity {
     }
 
     private static byte[] readAll(File f) throws IOException {
-        try (InputStream in = new FileInputStream(f); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        try (InputStream in = new FileInputStream(f)) {
+            return readAll(in);
+        }
+    }
+
+    private static byte[] readAll(InputStream in) throws IOException {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             copy(in, out);
             return out.toByteArray();
         }
@@ -540,8 +546,8 @@ public class MainActivity extends Activity {
         if (extraLength < 4) extraLength += ALIGNMENT;
         int payload = extraLength - 4;
         byte[] extra = new byte[extraLength];
-        extra[0] = (byte) 0xD9;
-        extra[1] = 0x35;
+        extra[0] = 0x35;
+        extra[1] = (byte) 0xD9;
         extra[2] = (byte) (payload & 0xff);
         extra[3] = (byte) ((payload >>> 8) & 0xff);
         entry.setExtra(extra);
@@ -585,7 +591,7 @@ public class MainActivity extends Activity {
         new ApkSigner.Builder(Collections.singletonList(config))
                 .setInputApk(unsigned)
                 .setOutputApk(signed)
-                .setMinSdkVersion(23)
+                .setMinSdkVersion(21)
                 .setV1SigningEnabled(true)
                 .setV2SigningEnabled(true)
                 .setV3SigningEnabled(true)
