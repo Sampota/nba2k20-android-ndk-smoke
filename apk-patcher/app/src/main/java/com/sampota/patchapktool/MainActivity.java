@@ -302,6 +302,101 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void chooseIdentityBackup() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/zip");
+        intent.putExtra(Intent.EXTRA_TITLE, "Patch APK Tool Signing Identity.zip");
+        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent, PICK_IDENTITY_BACKUP);
+    }
+
+    private void chooseIdentityRestore() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent, PICK_IDENTITY_RESTORE);
+    }
+
+    private void backupIdentity(Uri destination) throws Exception {
+        File key = new File(getFilesDir(), "patcher-signing-key.pk8");
+        File cert = new File(getFilesDir(), "patcher-signing-cert.der");
+        if (!key.exists() || !cert.exists()) createSigningIdentity(key, cert);
+        try (OutputStream raw = getContentResolver().openOutputStream(destination, "w")) {
+            if (raw == null) throw new IOException("Cannot open the selected backup destination.");
+            try (ZipOutputStream zip = new ZipOutputStream(raw)) {
+                zip.putNextEntry(new ZipEntry("patcher-signing-key.pk8"));
+                try (InputStream in = new FileInputStream(key)) { copy(in, zip); }
+                zip.closeEntry();
+                zip.putNextEntry(new ZipEntry("patcher-signing-cert.der"));
+                try (InputStream in = new FileInputStream(cert)) { copy(in, zip); }
+                zip.closeEntry();
+                zip.finish();
+            }
+        }
+    }
+
+    private void restoreIdentity(Uri source) throws Exception {
+        byte[] keyBytes = null;
+        byte[] certBytes = null;
+        try (InputStream raw = getContentResolver().openInputStream(source)) {
+            if (raw == null) throw new IOException("Cannot read the selected backup ZIP.");
+            try (ZipInputStream zip = new ZipInputStream(raw)) {
+                ZipEntry entry;
+                while ((entry = zip.getNextEntry()) != null) {
+                    if ("patcher-signing-key.pk8".equals(entry.getName())) keyBytes = readLimited(zip, 32768);
+                    else if ("patcher-signing-cert.der".equals(entry.getName())) certBytes = readLimited(zip, 32768);
+                    zip.closeEntry();
+                }
+            }
+        }
+        if (keyBytes == null || certBytes == null) throw new IOException("Backup ZIP does not contain the patcher signing identity.");
+        PrivateKey restoredKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+        X509Certificate restoredCert;
+        try (InputStream in = new java.io.ByteArrayInputStream(certBytes)) {
+            restoredCert = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(in);
+        }
+        restoredCert.verify(restoredCert.getPublicKey());
+        Signature signature = Signature.getInstance("SHA256withRSA");
+        byte[] challenge = "Patch APK Tool signing identity check".getBytes(StandardCharsets.UTF_8);
+        signature.initSign(restoredKey);
+        signature.update(challenge);
+        byte[] proof = signature.sign();
+        signature.initVerify(restoredCert.getPublicKey());
+        signature.update(challenge);
+        if (!signature.verify(proof)) throw new IOException("The private key does not match the certificate.");
+
+        File keyTarget = new File(getFilesDir(), "patcher-signing-key.pk8");
+        File certTarget = new File(getFilesDir(), "patcher-signing-cert.der");
+        File keyTemp = new File(getFilesDir(), "identity-key.tmp");
+        File certTemp = new File(getFilesDir(), "identity-cert.tmp");
+        writeBytes(keyTemp, keyBytes);
+        writeBytes(certTemp, certBytes);
+        if (keyTarget.exists() && !keyTarget.delete()) throw new IOException("Cannot replace the old signing key.");
+        if (certTarget.exists() && !certTarget.delete()) throw new IOException("Cannot replace the old signing certificate.");
+        if (!keyTemp.renameTo(keyTarget) || !certTemp.renameTo(certTarget)) {
+            throw new IOException("Could not save the restored signing identity.");
+        }
+    }
+
+    private static byte[] readLimited(InputStream in, int limit) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        int total = 0;
+        int n;
+        while ((n = in.read(buffer)) != -1) {
+            total += n;
+            if (total > limit) throw new IOException("Signing identity backup contains an oversized file.");
+            out.write(buffer, 0, n);
+        }
+        return out.toByteArray();
+    }
+
+    private static void writeBytes(File file, byte[] data) throws IOException {
+        try (OutputStream out = new FileOutputStream(file)) { out.write(data); }
+    }
+
     private void restoreSelection() {
         SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
         String a = p.getString("apk", null);
