@@ -437,6 +437,7 @@ jobs:
             exit 1
           fi
           readelf -d build-android/libshotmeter-v70.so | grep -F 'libc++_shared.so'
+          readelf -d build-android/libshotmeter-v70.so | grep -F 'Library soname: [libshotmeter.so]'
 
       - name: Upload v70 native constructor bootstrap library
         uses: actions/upload-artifact@v4
