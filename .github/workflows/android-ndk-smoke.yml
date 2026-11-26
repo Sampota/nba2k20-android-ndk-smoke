@@ -5,7 +5,7 @@ name: Android NDK ARM64 smoke test and read-only capture probe
 
 on:
   push:
-    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn, v50-render-probability-diagnostics, v51-grade-aware-probability, v52-claude-shot-feedback, v53-gl-stability-probability-fix, v54-perfect-shot-fire-celebration, v55-meter-anchor-fire-fix, v56-independent-meter-fire-pass, v57-glsl-fire-region-compile-fix, v58-left-meter-raised-larger-fire, v59-meter-right-of-player, v61-meter-right-feedback-top-aligned, v62-claude-flame-hand-clear-meter, v63-diagnostic-coordinate-gl-fix, v64-halo-flame-tight-feedback, v65-clean-code-visual-tuning, v66-clean-release, v67-gl-recovery, v68-auto-bootstrap, v69-elf-needed-bootstrap ]
+    branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn, v50-render-probability-diagnostics, v51-grade-aware-probability, v52-claude-shot-feedback, v53-gl-stability-probability-fix, v54-perfect-shot-fire-celebration, v55-meter-anchor-fire-fix, v56-independent-meter-fire-pass, v57-glsl-fire-region-compile-fix, v58-left-meter-raised-larger-fire, v59-meter-right-of-player, v61-meter-right-feedback-top-aligned, v62-claude-flame-hand-clear-meter, v63-diagnostic-coordinate-gl-fix, v64-halo-flame-tight-feedback, v65-clean-code-visual-tuning, v66-clean-release, v67-gl-recovery, v68-auto-bootstrap, v69-elf-needed-bootstrap, v70-native-constructor-no-vm ]
   pull_request:
     branches: [ v52-claude-shot-feedback, v64-halo-flame-tight-feedback, v67-gl-recovery, v68-auto-bootstrap ]
   workflow_dispatch:
@@ -119,6 +119,7 @@ jobs:
           DOBBY_AGENT_V67="build-android/libshotmeter-v67.so"
           DOBBY_AGENT_V68="build-android/libshotmeter-v68.so"
           DOBBY_AGENT_V69="build-android/libshotmeter-v69.so"
+          DOBBY_AGENT_V70="build-android/libshotmeter-v70.so"
           SHADOWHOOK="$(find build-android -type f -name libshadowhook.so -print -quit)"
 
           test -s "$SMOKE"
@@ -155,10 +156,11 @@ jobs:
           test -s "$DOBBY_AGENT_V67"
           test -s "$DOBBY_AGENT_V68"
           test -s "$DOBBY_AGENT_V69"
+          test -s "$DOBBY_AGENT_V70"
           test -n "$SHADOWHOOK"
           test -s "$SHADOWHOOK"
 
-          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$DOBBY_AGENT_V53" "$DOBBY_AGENT_V54" "$DOBBY_AGENT_V55" "$DOBBY_AGENT_V56" "$DOBBY_AGENT_V57" "$DOBBY_AGENT_V58" "$DOBBY_AGENT_V59" "$DOBBY_AGENT_V61" "$DOBBY_AGENT_V62" "$DOBBY_AGENT_V63" "$DOBBY_AGENT_V64" "$DOBBY_AGENT_V65" "$DOBBY_AGENT_V66" "$DOBBY_AGENT_V67" "$DOBBY_AGENT_V68" "$DOBBY_AGENT_V69" "$SHADOWHOOK"; do
+          for LIB in "$SMOKE" "$PROBE" "$PROXY" "$AGENT" "$DOBBY_AGENT" "$DOBBY_AGENT_V39" "$DOBBY_AGENT_V40" "$DOBBY_AGENT_V41" "$DOBBY_AGENT_V42" "$DOBBY_AGENT_V43" "$DOBBY_AGENT_V44" "$DOBBY_AGENT_V46" "$DOBBY_AGENT_V47" "$DOBBY_AGENT_V48" "$DOBBY_AGENT_V49" "$DOBBY_AGENT_V50" "$DOBBY_AGENT_V51" "$DOBBY_AGENT_V52" "$DOBBY_AGENT_V53" "$DOBBY_AGENT_V54" "$DOBBY_AGENT_V55" "$DOBBY_AGENT_V56" "$DOBBY_AGENT_V57" "$DOBBY_AGENT_V58" "$DOBBY_AGENT_V59" "$DOBBY_AGENT_V61" "$DOBBY_AGENT_V62" "$DOBBY_AGENT_V63" "$DOBBY_AGENT_V64" "$DOBBY_AGENT_V65" "$DOBBY_AGENT_V66" "$DOBBY_AGENT_V67" "$DOBBY_AGENT_V68" "$DOBBY_AGENT_V69" "$DOBBY_AGENT_V70" "$SHADOWHOOK"; do
             echo "=== $LIB ==="
             file "$LIB"
             readelf -h "$LIB" | grep -E 'Class:|Machine:'
@@ -406,6 +408,8 @@ jobs:
           cp "$DOBBY_AGENT_V68" build-android/artifacts/arm64-v8a/libshotmeter-v68.so
           cp "$DOBBY_AGENT_V68" build-android/artifacts/arm64-v8a/libshotmeter.so
           cp "$DOBBY_AGENT_V69" build-android/artifacts/arm64-v8a/libshotmeter-v69.so
+          cp "$DOBBY_AGENT_V70" build-android/artifacts/arm64-v8a/libshotmeter-v70.so
+          cp "$DOBBY_AGENT_V70" build-android/artifacts/arm64-v8a/libshotmeter.so
           cp "$SHADOWHOOK" build-android/artifacts/arm64-v8a/
 
       - name: Verify v69 ELF dependency bootstrap
@@ -421,6 +425,24 @@ jobs:
         with:
           name: shotmeter-v69-elf-needed-bootstrap-arm64
           path: build-android/artifacts/arm64-v8a/libshotmeter-v69.so
+          if-no-files-found: error
+
+      - name: Verify v70 native constructor bootstrap
+        shell: bash
+        run: |
+          readelf -Ws build-android/libshotmeter-v70.so | grep -E 'Agent_OnAttach|JNI_OnLoad'
+          strings build-android/libshotmeter-v70.so | grep -F 'ELF constructor'
+          if strings build-android/libshotmeter-v70.so | grep -F 'JNI_GetCreatedJavaVMs'; then
+            echo "v70 must not depend on private ART VM lookup" >&2
+            exit 1
+          fi
+          readelf -d build-android/libshotmeter-v70.so | grep -F 'libc++_shared.so'
+
+      - name: Upload v70 native constructor bootstrap library
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-v70-native-constructor-no-vm-arm64
+          path: build-android/artifacts/arm64-v8a/libshotmeter-v70.so
           if-no-files-found: error
 
       - name: Upload Android ARM64 smoke-test artifact
