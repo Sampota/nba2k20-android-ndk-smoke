@@ -1,5 +1,7 @@
 # Patch APK Tool (Android)
 
+Build channel: standalone Android utility app.
+
 A standalone Android app for replacing a native shared library inside an APK and signing the result.
 
 ## App features
