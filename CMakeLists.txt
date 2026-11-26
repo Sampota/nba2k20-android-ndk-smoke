@@ -1025,3 +1025,30 @@ set_target_properties(shotmeter_dobby_v70_native_constructor_no_vm_agent PROPERT
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES)
 
+
+# v71 reduces per-fragment green-flame texture work while preserving the v70
+# automatic ELF-constructor bootstrap and all meter/banner/audio behavior.
+set(_shotmeter_dobby_v71_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v71.map.txt")
+file(WRITE "${_shotmeter_dobby_v71_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; JNI_OnLoad; local: *; };")
+add_library(shotmeter_dobby_v71_green_fps_agent
+    SHARED src/shotmeter_dobby_v71_green_fps.cpp)
+target_link_libraries(shotmeter_dobby_v71_green_fps_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles}
+    c++_shared)
+target_compile_features(shotmeter_dobby_v71_green_fps_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v71_green_fps_agent PRIVATE
+    -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-parameter -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v71_green_fps_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,-soname,libshotmeter.so
+    -Wl,--no-as-needed
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v71_agent_map}")
+set_target_properties(shotmeter_dobby_v71_green_fps_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v71"
+    NO_SONAME YES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
