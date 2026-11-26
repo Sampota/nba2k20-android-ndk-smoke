@@ -1,11 +1,15 @@
 package com.sampota.patchapktool;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.Settings;
 import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
@@ -97,7 +101,31 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(0xFF101827);
         buildUi();
         restoreSelection();
+        requestAllFilesAccessIfNeeded();
     }
+
+    private void requestAllFilesAccessIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()) return;
+        new AlertDialog.Builder(this)
+                .setTitle("Allow file access")
+                .setMessage("Patch APK Tool needs permission to manage files so you can choose folders you created and save patched APKs there. Tap Continue, then enable ‘Allow access to manage all files’ for Patch APK Tool.")
+                .setCancelable(false)
+                .setNegativeButton("Not now", (dialog, which) -> {
+                    statusValue.setText("File access not granted. You can still try the Android file picker, or grant access from the next app launch.");
+                })
+                .setPositiveButton("Continue", (dialog, which) -> {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                        startActivity(intent);
+                    }
+                })
+                .show();
+    }
+
 
     private void buildUi() {
         ScrollView scroll = new ScrollView(this);
