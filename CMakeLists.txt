@@ -1021,6 +1021,7 @@ target_link_options(shotmeter_dobby_v70_native_constructor_no_vm_agent PRIVATE
     "-Wl,--version-script=${_shotmeter_dobby_v70_agent_map}")
 set_target_properties(shotmeter_dobby_v70_native_constructor_no_vm_agent PROPERTIES
     OUTPUT_NAME "shotmeter-v70"
+    NO_SONAME YES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES)
 
