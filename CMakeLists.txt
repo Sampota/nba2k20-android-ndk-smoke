@@ -1014,6 +1014,7 @@ target_compile_options(shotmeter_dobby_v70_native_constructor_no_vm_agent PRIVAT
     -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-parameter -fvisibility=hidden)
 target_link_options(shotmeter_dobby_v70_native_constructor_no_vm_agent PRIVATE
     ${_shadowhook_arch_link_flags}
+    -Wl,-soname,libshotmeter.so
     -Wl,--no-as-needed
     -Wl,--exclude-libs,ALL
     -Wl,--gc-sections
