@@ -73,7 +73,6 @@ import java.util.zip.ZipInputStream;
 public class MainActivity extends Activity {
     private static final int PICK_APK = 10;
     private static final int PICK_SO = 11;
-    private static final int PICK_OUTPUT = 12;
     private static final int PICK_IDENTITY_BACKUP = 13;
     private static final int PICK_IDENTITY_RESTORE = 14;
     private static final String PREFS = "patcher";
@@ -81,10 +80,9 @@ public class MainActivity extends Activity {
 
     private Uri apkUri;
     private Uri soUri;
-    private Uri outputTreeUri;
     private String apkName = "";
     private String soName = "";
-    private String outputName = "No output folder selected";
+    private String outputName = "Internal storage/Patched APK";
     private TextView apkValue;
     private TextView soValue;
     private TextView outputValue;
@@ -178,7 +176,8 @@ public class MainActivity extends Activity {
         LinearLayout folderCard = card(page, "4  •  Output folder");
         outputValue = text(outputName, 13, 0xFF697586, false);
         folderCard.addView(outputValue, spaced());
-        addButton(folderCard, "Choose Output Folder", v -> pickOutputFolder());
+        TextView folderHint = text("Patched APK files are saved automatically to Internal storage/Patched APK. The app creates this folder if it does not exist.", 12, 0xFF697586, false);
+        folderCard.addView(folderHint, spaced());
 
         patchButton = new Button(this);
         patchButton.setText("PATCH & SIGN APK");
@@ -202,7 +201,7 @@ public class MainActivity extends Activity {
         addButton(identityCard, "Back Up Signing Identity", v -> chooseIdentityBackup());
         addButton(identityCard, "Restore Signing Identity", v -> chooseIdentityRestore());
 
-        TextView footer = text("The original APK is never overwritten. Existing output files are kept; new files receive a numbered name.", 12, 0xFF697586, false);
+        TextView footer = text("Output location: Internal storage/Patched APK. The original APK is never overwritten. Existing output files are kept; new files receive a numbered name.", 12, 0xFF697586, false);
         LinearLayout.LayoutParams footParams = params(-1, -2);
         footParams.topMargin = dp(14);
         page.addView(footer, footParams);
@@ -265,12 +264,6 @@ public class MainActivity extends Activity {
         startActivityForResult(intent, request);
     }
 
-    private void pickOutputFolder() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
-                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-        startActivityForResult(intent, PICK_OUTPUT);
-    }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -303,12 +296,6 @@ public class MainActivity extends Activity {
             soName = name;
             prefs.edit().putString("so", uri.toString()).putString("soName", name).apply();
             soValue.setText(name);
-        } else if (requestCode == PICK_OUTPUT) {
-            outputTreeUri = uri;
-            DocumentFile folder = DocumentFile.fromTreeUri(this, uri);
-            outputName = folder != null && folder.getName() != null ? folder.getName() : "Selected folder";
-            prefs.edit().putString("output", uri.toString()).putString("outputName", outputName).apply();
-            outputValue.setText(outputName);
         } else if (requestCode == PICK_IDENTITY_BACKUP) {
             executor.execute(() -> {
                 try {
@@ -429,13 +416,11 @@ public class MainActivity extends Activity {
         SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
         String a = p.getString("apk", null);
         String s = p.getString("so", null);
-        String o = p.getString("output", null);
         if (a != null) apkUri = Uri.parse(a);
         if (s != null) soUri = Uri.parse(s);
-        if (o != null) outputTreeUri = Uri.parse(o);
         apkName = p.getString("apkName", "");
         soName = p.getString("soName", "");
-        outputName = p.getString("outputName", "No output folder selected");
+        outputName = "Internal storage/Patched APK";
         apkValue.setText(apkName.isEmpty() ? "No APK selected" : apkName);
         soValue.setText(soName.isEmpty() ? "No .so library selected" : soName);
         outputValue.setText(outputName);
@@ -452,8 +437,8 @@ public class MainActivity extends Activity {
     }
 
     private void startPatch() {
-        if (apkUri == null || soUri == null || outputTreeUri == null) {
-            toast("Select the base APK, replacement .so, and output folder first.");
+        if (apkUri == null || soUri == null) {
+            toast("Select the base APK and replacement .so first.");
             return;
         }
         String targetName = destinationName.getText().toString().trim();
@@ -464,7 +449,6 @@ public class MainActivity extends Activity {
         String abi = (String) abiSpinner.getSelectedItem();
         Uri selectedApk = apkUri;
         Uri selectedSo = soUri;
-        Uri selectedOutput = outputTreeUri;
         String selectedName = apkName;
         patchButton.setEnabled(false);
         setStatus("Preparing files…");
@@ -482,16 +466,17 @@ public class MainActivity extends Activity {
                 patchZip(input, libBytes, unsigned, abi, targetName);
                 signAndVerify(unsigned, signed);
                 String outputFileName = makeOutputName(selectedName);
-                DocumentFile folder = DocumentFile.fromTreeUri(this, selectedOutput);
-                if (folder == null || !folder.isDirectory() || !folder.canWrite()) {
-                    throw new IOException("The selected output folder is no longer writable. Choose it again.");
+                File outputDirectory = new File(Environment.getExternalStorageDirectory(), "Patched APK");
+                if (!outputDirectory.exists() && !outputDirectory.mkdirs()) {
+                    throw new IOException("Could not create Internal storage/Patched APK. Check the app's all-files access permission.");
                 }
-                String unique = uniqueName(folder, outputFileName);
-                DocumentFile destination = folder.createFile("application/vnd.android.package-archive", unique);
-                if (destination == null) throw new IOException("Could not create the output APK in that folder.");
+                if (!outputDirectory.isDirectory() || !outputDirectory.canWrite()) {
+                    throw new IOException("Internal storage/Patched APK is not writable. Enable Allow access to manage all files in Android Settings.");
+                }
+                String unique = uniqueName(outputDirectory, outputFileName);
+                File destination = new File(outputDirectory, unique);
                 try (InputStream in = new FileInputStream(signed);
-                     OutputStream out = getContentResolver().openOutputStream(destination.getUri(), "w")) {
-                    if (out == null) throw new IOException("Could not open the output file for writing.");
+                     OutputStream out = new FileOutputStream(destination)) {
                     copy(in, out);
                     out.flush();
                 } catch (Exception e) {
@@ -500,7 +485,7 @@ public class MainActivity extends Activity {
                 }
                 runOnUiThread(() -> {
                     patchButton.setEnabled(true);
-                    setStatus("SUCCESS\n" + unique + "\nLibrary: lib/" + abi + "/" + targetName + "\nSigned with V1 + V2 + V3.");
+                    setStatus("SUCCESS\nSaved to: Internal storage/Patched APK/" + unique + "\nLibrary: lib/" + abi + "/" + targetName + "\nSigned with V1 + V2 + V3.");
                     toast("Patched APK saved.");
                 });
             } catch (Exception e) {
@@ -527,12 +512,12 @@ public class MainActivity extends Activity {
         return base + "_PATCHED.apk";
     }
 
-    private String uniqueName(DocumentFile folder, String proposed) {
-        if (folder.findFile(proposed) == null) return proposed;
+    private String uniqueName(File folder, String proposed) {
+        if (!new File(folder, proposed).exists()) return proposed;
         String stem = proposed.substring(0, proposed.length() - 4);
         for (int i = 2; i < 10000; i++) {
             String candidate = stem + "_" + i + ".apk";
-            if (folder.findFile(candidate) == null) return candidate;
+            if (!new File(folder, candidate).exists()) return candidate;
         }
         return stem + "_" + System.currentTimeMillis() + ".apk";
     }
