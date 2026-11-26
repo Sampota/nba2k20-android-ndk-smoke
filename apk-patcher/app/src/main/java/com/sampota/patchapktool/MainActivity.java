@@ -47,6 +47,7 @@ import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
+import java.security.Signature;
 import java.security.Security;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -63,11 +64,14 @@ import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
+import java.util.zip.ZipInputStream;
 
 public class MainActivity extends Activity {
     private static final int PICK_APK = 10;
     private static final int PICK_SO = 11;
     private static final int PICK_OUTPUT = 12;
+    private static final int PICK_IDENTITY_BACKUP = 13;
+    private static final int PICK_IDENTITY_RESTORE = 14;
     private static final String PREFS = "patcher";
     private static final int ALIGNMENT = 4096;
 
@@ -163,6 +167,12 @@ public class MainActivity extends Activity {
         statusValue = text("Ready. Select an APK, a .so file, and an output folder.", 13, 0xFF334155, false);
         statusValue.setMinLines(2);
         statusCard.addView(statusValue, spaced());
+
+        LinearLayout identityCard = card(page, "Signing identity");
+        TextView identityHint = text("Back up this identity before reinstalling the patcher app or clearing its data. Future patched APKs must use the same identity to install as updates.", 12, 0xFF697586, false);
+        identityCard.addView(identityHint, spaced());
+        addButton(identityCard, "Back Up Signing Identity", v -> chooseIdentityBackup());
+        addButton(identityCard, "Restore Signing Identity", v -> chooseIdentityRestore());
 
         TextView footer = text("The original APK is never overwritten. Existing output files are kept; new files receive a numbered name.", 12, 0xFF697586, false);
         LinearLayout.LayoutParams footParams = params(-1, -2);
