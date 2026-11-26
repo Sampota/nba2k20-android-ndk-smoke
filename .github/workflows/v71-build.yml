@@ -41,7 +41,7 @@ jobs:
           readelf -d "$LIB" | grep -F 'libc++_shared.so'
           readelf --dyn-syms -W "$LIB" | grep -F 'Agent_OnAttach'
           readelf --dyn-syms -W "$LIB" | grep -F 'JNI_OnLoad'
-          strings "$LIB" | grep -F 'shotmeter.dobby-v71-green-fps'
+          strings "$LIB" | grep -F 'ShotmeterDobbyV71'
           if strings "$LIB" | grep -F 'JNI_GetCreatedJavaVMs'; then exit 1; fi
       - name: Check patcher Python syntax
         run: python3 -m py_compile tools/patch_apk.py
