@@ -414,6 +414,7 @@ jobs:
           readelf -Ws build-android/libshotmeter-v69.so | grep -E 'Agent_OnAttach|JNI_OnLoad'
           strings build-android/libshotmeter-v69.so | grep -F 'v69 dependency constructor'
           readelf -d build-android/libshotmeter-v69.so | grep -F 'liblog.so'
+          readelf -d build-android/libshotmeter-v69.so | grep -F 'libc++_shared.so'
 
       - name: Upload v69 ELF dependency bootstrap library
         uses: actions/upload-artifact@v4
