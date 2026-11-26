@@ -625,8 +625,8 @@ public class MainActivity extends Activity {
             Enumeration<? extends ZipEntry> all = check.entries();
             while (all.hasMoreElements()) {
                 ZipEntry e2 = all.nextElement();
-                if (e2.getName().startsWith("lib/") && e2.getName().endsWith(".so") && e2.getMethod() != ZipEntry.STORED) {
-                    throw new IOException("Native library is compressed in output: " + e2.getName());
+                if (e2.getName().equals(targetPath) && e2.getMethod() != ZipEntry.STORED) {
+                    throw new IOException("Replacement native library is compressed in output: " + e2.getName());
                 }
             }
         }
@@ -637,7 +637,9 @@ public class MainActivity extends Activity {
         if (old.getTime() >= 0) entry.setTime(old.getTime());
         if (old.getComment() != null) entry.setComment(old.getComment());
         boolean nativeLib = old.getName().startsWith("lib/") && old.getName().endsWith(".so");
-        boolean stored = nativeLib || old.getMethod() == ZipEntry.STORED;
+        // Preserve each untouched entry's original compression method. Only the
+        // replacement library is forced to STORED by writeStoredAligned().
+        boolean stored = old.getMethod() == ZipEntry.STORED;
         if (stored) {
             entry.setMethod(ZipEntry.STORED);
             entry.setSize(old.getSize());
