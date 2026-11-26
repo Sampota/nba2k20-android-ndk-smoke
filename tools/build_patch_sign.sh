@@ -11,7 +11,7 @@ if [[ -z "$SDK" || ! -d "$SDK/build-tools" ]]; then
   echo "Set ANDROID_SDK_ROOT or ANDROID_HOME to an Android SDK installation." >&2
   exit 1
 fi
-BT="$(find "$SDK/build-tools" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -V | tail -n1)"
+BT="$(for d in "$SDK"/build-tools/*; do [[ -d "$d" ]] && basename "$d"; done | sort -V | tail -n1)"
 ZIPALIGN="$SDK/build-tools/$BT/zipalign"
 APKSIGNER="$SDK/build-tools/$BT/apksigner"
 for tool in "$ZIPALIGN" "$APKSIGNER" keytool python3; do
