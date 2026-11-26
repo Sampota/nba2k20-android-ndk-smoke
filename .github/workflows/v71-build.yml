@@ -1,0 +1,53 @@
+name: v71 ARM64 build and APK-tool checks
+on:
+  push:
+    branches: [ v71-green-fps-apk-tools ]
+  workflow_dispatch:
+jobs:
+  build-v71:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Install NDK and CMake
+        run: |
+          sdkmanager --install "ndk;30.0.16248370"
+          python -m pip install --user --disable-pip-version-check cmake==4.0.2
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+      - name: Configure ARM64
+        run: |
+          cmake -S . -B build-android \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/30.0.16248370/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 \
+            -DCMAKE_BUILD_TYPE=Release -DANDROID_STL=c++_static
+      - name: Build v71 library
+        run: cmake --build build-android --config Release --target shotmeter_dobby_v71_green_fps_agent --parallel 2
+      - name: Verify v71 ELF and bootstrap invariants
+        run: |
+          LIB=build-android/libshotmeter-v71.so
+          test -s "$LIB"
+          readelf -h "$LIB" | grep -q 'Machine:.*AArch64'
+          readelf -d "$LIB" | grep -F 'Library soname: [libshotmeter.so]'
+          readelf -d "$LIB" | grep -F 'libc++_shared.so'
+          readelf --dyn-syms -W "$LIB" | grep -F 'Agent_OnAttach'
+          readelf --dyn-syms -W "$LIB" | grep -F 'JNI_OnLoad'
+          strings "$LIB" | grep -F 'shotmeter.dobby-v71-green-fps'
+          if strings "$LIB" | grep -F 'JNI_GetCreatedJavaVMs'; then exit 1; fi
+      - name: Check patcher Python syntax
+        run: python3 -m py_compile tools/patch_apk.py
+      - name: Upload v71 library
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotmeter-v71-green-fps-arm64
+          path: build-android/libshotmeter-v71.so
+          if-no-files-found: error
