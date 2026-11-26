@@ -983,12 +983,14 @@ file(WRITE "${_shotmeter_dobby_v69_agent_map}"
 add_library(shotmeter_dobby_v69_elf_needed_bootstrap_agent
     SHARED src/shotmeter_dobby_v69_elf_needed_bootstrap.cpp)
 target_link_libraries(shotmeter_dobby_v69_elf_needed_bootstrap_agent PRIVATE
-    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles}
+    c++_shared)
 target_compile_features(shotmeter_dobby_v69_elf_needed_bootstrap_agent PRIVATE cxx_std_17)
 target_compile_options(shotmeter_dobby_v69_elf_needed_bootstrap_agent PRIVATE
     -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-parameter -fvisibility=hidden)
 target_link_options(shotmeter_dobby_v69_elf_needed_bootstrap_agent PRIVATE
     ${_shadowhook_arch_link_flags}
+    -Wl,--no-as-needed
     -Wl,--exclude-libs,ALL
     -Wl,--gc-sections
     "-Wl,--version-script=${_shotmeter_dobby_v69_agent_map}")
