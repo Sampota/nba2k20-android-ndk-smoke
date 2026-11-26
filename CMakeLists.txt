@@ -947,3 +947,29 @@ set_target_properties(shotmeter_dobby_v67_gl_recovery_agent PROPERTIES
     OUTPUT_NAME "shotmeter-v67"
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES)
+
+# v68 adds an Android JNI_OnLoad bootstrap while retaining v67 behavior.
+# JNI_OnLoad starts a bounded worker that waits for the already-loaded game ELF,
+# then invokes the same Agent_OnAttach initialization path. The APK still needs
+# a startup System.loadLibrary("shotmeter") call.
+set(_shotmeter_dobby_v68_agent_map
+    "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v68.map.txt")
+file(WRITE "${_shotmeter_dobby_v68_agent_map}"
+    "{ global: Agent_OnAttach; Agent_OnUnload; JNI_OnLoad; local: *; };")
+add_library(shotmeter_dobby_v68_auto_bootstrap_agent
+    SHARED src/shotmeter_dobby_v68_auto_bootstrap.cpp)
+target_link_libraries(shotmeter_dobby_v68_auto_bootstrap_agent PRIVATE
+    dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles})
+target_compile_features(shotmeter_dobby_v68_auto_bootstrap_agent PRIVATE cxx_std_17)
+target_compile_options(shotmeter_dobby_v68_auto_bootstrap_agent PRIVATE
+    -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-parameter -fvisibility=hidden)
+target_link_options(shotmeter_dobby_v68_auto_bootstrap_agent PRIVATE
+    ${_shadowhook_arch_link_flags}
+    -Wl,--exclude-libs,ALL
+    -Wl,--gc-sections
+    "-Wl,--version-script=${_shotmeter_dobby_v68_agent_map}")
+set_target_properties(shotmeter_dobby_v68_auto_bootstrap_agent PROPERTIES
+    OUTPUT_NAME "shotmeter-v68"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
+
