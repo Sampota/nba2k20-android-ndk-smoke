@@ -176,7 +176,7 @@ public class MainActivity extends Activity {
         LinearLayout folderCard = card(page, "4  •  Output folder");
         outputValue = text(outputName, 13, 0xFF697586, false);
         folderCard.addView(outputValue, spaced());
-        TextView folderHint = text("Patched APK files are saved automatically to Internal storage/Patched APK. The app creates this folder if it does not exist.", 12, 0xFF697586, false);
+        TextView folderHint = text("FIXED SAVE LOCATION\nInternal storage/Patched APK\n\nNo output-folder picker is needed. After patching, open your phone’s Files app > Internal storage > Patched APK. The output is named [original APK name]_PATCHED.apk. If that name already exists, a number is added (for example, _2).", 13, 0xFF334155, true);
         folderCard.addView(folderHint, spaced());
 
         patchButton = new Button(this);
@@ -191,7 +191,7 @@ public class MainActivity extends Activity {
         patchButton.setOnClickListener(v -> startPatch());
 
         LinearLayout statusCard = card(page, "Status");
-        statusValue = text("Ready. Select an APK, a .so file, and an output folder.", 13, 0xFF334155, false);
+        statusValue = text("Ready. Select the base APK and replacement .so. The patched APK will be saved to Internal storage/Patched APK automatically.", 13, 0xFF334155, false);
         statusValue.setMinLines(2);
         statusCard.addView(statusValue, spaced());
 
