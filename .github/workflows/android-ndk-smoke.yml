@@ -7,7 +7,7 @@ on:
   push:
     branches: [ main, v41-feedback-gate-reset, v42-second-shotmeter, v43-player-anchor-diagnostic, v44-idempotent-player-anchor, v46-player-anchored-curved-meter, v47-crescent-perfect-meter, v48-progressive-perfect-green-giant, v49-smooth-opengles-horn, v50-render-probability-diagnostics, v51-grade-aware-probability, v52-claude-shot-feedback, v53-gl-stability-probability-fix, v54-perfect-shot-fire-celebration, v55-meter-anchor-fire-fix, v56-independent-meter-fire-pass, v57-glsl-fire-region-compile-fix, v58-left-meter-raised-larger-fire, v59-meter-right-of-player, v61-meter-right-feedback-top-aligned, v62-claude-flame-hand-clear-meter, v63-diagnostic-coordinate-gl-fix, v64-halo-flame-tight-feedback, v65-clean-code-visual-tuning, v66-clean-release, v67-gl-recovery, v68-auto-bootstrap ]
   pull_request:
-    branches: [ v52-claude-shot-feedback, v64-halo-flame-tight-feedback ]
+    branches: [ v52-claude-shot-feedback, v64-halo-flame-tight-feedback, v67-gl-recovery ]
   workflow_dispatch:
 
 jobs:
