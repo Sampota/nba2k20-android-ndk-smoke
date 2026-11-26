@@ -44,7 +44,7 @@ jobs:
         run: gradle -p apk-patcher --no-daemon clean assembleDebug
 
       - name: Verify generated APK signature
-        run: apksigner verify --verbose --print-certs apk-patcher/app/build/outputs/apk/debug/app-debug.apk
+        run: "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose --print-certs apk-patcher/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload Patch APK Tool
         uses: actions/upload-artifact@v4
