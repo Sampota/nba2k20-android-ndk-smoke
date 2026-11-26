@@ -48,7 +48,9 @@ else
 fi
 mkdir -p "$(dirname "$OUTPUT_APK")"
 "$APKSIGNER" sign --ks "$KEYSTORE" --ks-key-alias "$ALIAS" \
-  --ks-pass "pass:$PASS" --key-pass "pass:$PASS" --out "$OUTPUT_APK" "$TMP/aligned.apk"
+  --ks-pass "pass:$PASS" --key-pass "pass:$PASS" \
+  --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+  --out "$OUTPUT_APK" "$TMP/aligned.apk"
 "$APKSIGNER" verify --verbose --print-certs "$OUTPUT_APK"
 echo "Signed APK ready: $OUTPUT_APK"
 echo "Signing key: $KEYSTORE (keep it safe; future updates must reuse it)"
