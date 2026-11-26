@@ -30,7 +30,7 @@ GitHub Actions builds this APK and publishes it as the `patch-apk-tool-debug-apk
 
 ## Important signing note
 
-The patcher generates its own RSA signing identity the first time it signs an APK and stores it in the app's private data directory. Keep the app installed and do not clear its data if you need later patched APKs to have the same signing certificate. Android will not install a patched game APK as an in-place update when its signing certificate changes. Back up the patcher identity before reinstalling or clearing the app's data; identity export/import is planned for a follow-up update.
+The patcher generates its own RSA signing identity the first time it signs an APK and stores it in the app's private data directory. Keep the app installed and do not clear its data if you need later patched APKs to have the same signing certificate. Android will not install a patched game APK as an in-place update when its signing certificate changes. Use the in-app Back Up Signing Identity and Restore Signing Identity controls before reinstalling or clearing the app's data. The backup ZIP contains an unencrypted private key: keep it private and never share it.
 
 The patcher's signing identity is separate from the certificate used to sign/install the patcher app itself. This build is a debug-distribution build, not a Play Store release.
 
