@@ -281,6 +281,24 @@ public class MainActivity extends Activity {
             outputName = folder != null && folder.getName() != null ? folder.getName() : "Selected folder";
             prefs.edit().putString("output", uri.toString()).putString("outputName", outputName).apply();
             outputValue.setText(outputName);
+        } else if (requestCode == PICK_IDENTITY_BACKUP) {
+            executor.execute(() -> {
+                try {
+                    backupIdentity(uri);
+                    runOnUiThread(() -> toast("Signing identity backed up. Keep that ZIP private."));
+                } catch (Exception e) {
+                    runOnUiThread(() -> toast("Backup failed: " + e.getMessage()));
+                }
+            });
+        } else if (requestCode == PICK_IDENTITY_RESTORE) {
+            executor.execute(() -> {
+                try {
+                    restoreIdentity(uri);
+                    runOnUiThread(() -> toast("Signing identity restored successfully."));
+                } catch (Exception e) {
+                    runOnUiThread(() -> toast("Restore failed: " + e.getMessage()));
+                }
+            });
         }
     }
 
