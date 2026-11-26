@@ -2,7 +2,7 @@ name: Build Patch APK Tool Android app
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, v71-green-fps-apk-tools]
     paths:
       - "apk-patcher/**"
       - ".github/workflows/build-apk-patcher.yml"
