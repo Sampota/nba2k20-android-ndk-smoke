@@ -1974,6 +1974,8 @@ static void draw_overlay(EGLDisplay display, EGLSurface surface) {
    sampled these fields only while a shot meter was active, which made an idle
    player frame look like GL had never initialized. */
 __attribute__((noinline))
+static void draw_customization_ui(EGLDisplay display, EGLSurface surface);
+
 static EGLBoolean swap_proxy(EGLDisplay display, EGLSurface surface) {
     if (g_customization_open.load(std::memory_order_acquire) != 0)
         draw_customization_ui(display, surface);
