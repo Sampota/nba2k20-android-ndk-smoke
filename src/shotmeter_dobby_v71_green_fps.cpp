@@ -18,6 +18,7 @@
 #include <cmath>
 #include <string>
 #include <time.h>
+#include <vector>
 
 #include "dobby.h"
 #include "shotmeter_plugin_api.h"
@@ -125,6 +126,8 @@ static std::atomic<uint32_t> g_plugin_enabled{0};
 static std::atomic<uint32_t> g_customization_open{0};
 static std::atomic<uint32_t> g_plugin_settings_loaded{0};
 static std::atomic<uint32_t> g_plugin_settings_modified{0};
+static std::atomic<uint32_t> g_customization_tab{0};
+static std::atomic<uint32_t> g_ui_render_failures{0};
 static std::atomic<uint32_t> g_selected_design{0};
 static std::atomic<uint32_t> g_selected_audio{0};
 static std::atomic<uint32_t> g_selected_green_animation{0};
@@ -1972,7 +1975,10 @@ static void draw_overlay(EGLDisplay display, EGLSurface surface) {
    player frame look like GL had never initialized. */
 __attribute__((noinline))
 static EGLBoolean swap_proxy(EGLDisplay display, EGLSurface surface) {
-    draw_overlay(display, surface);
+    if (g_customization_open.load(std::memory_order_acquire) != 0)
+        draw_customization_ui(display, surface);
+    else
+        draw_overlay(display, surface);
     return g_original_swap ? g_original_swap(display, surface) : EGL_FALSE;
 }
 
@@ -2028,6 +2034,417 @@ static bool take_customization_tap(float *x, float *y) {
     *y = load_float(g_ui_tap_y_bits);
     g_ui_tap_consumed.store(sequence, std::memory_order_release);
     return true;
+}
+
+
+struct CustomUiVertex {
+    float x, y;
+    float r, g, b, a;
+};
+
+static struct {
+    EGLContext context = EGL_NO_CONTEXT;
+    GLuint program = 0, vbo = 0, vao = 0;
+    GLint position = -1, color = -1;
+    bool es3 = false;
+    bool ready = false;
+} UI;
+
+static uint8_t custom_ui_glyph_row(char ch, int row) {
+    if (row < 0 || row >= 7) return 0;
+    switch (ch) {
+        case 'A': { const uint8_t v[7]={14,17,17,31,17,17,17}; return v[row]; }
+        case 'B': { const uint8_t v[7]={30,17,17,30,17,17,30}; return v[row]; }
+        case 'C': { const uint8_t v[7]={14,17,16,16,16,17,14}; return v[row]; }
+        case 'D': { const uint8_t v[7]={30,17,17,17,17,17,30}; return v[row]; }
+        case 'E': { const uint8_t v[7]={31,16,16,30,16,16,31}; return v[row]; }
+        case 'F': { const uint8_t v[7]={31,16,16,30,16,16,16}; return v[row]; }
+        case 'G': { const uint8_t v[7]={14,17,16,23,17,17,15}; return v[row]; }
+        case 'H': { const uint8_t v[7]={17,17,17,31,17,17,17}; return v[row]; }
+        case 'I': { const uint8_t v[7]={14,4,4,4,4,4,14}; return v[row]; }
+        case 'J': { const uint8_t v[7]={7,2,2,2,18,18,12}; return v[row]; }
+        case 'K': { const uint8_t v[7]={17,18,20,24,20,18,17}; return v[row]; }
+        case 'L': { const uint8_t v[7]={16,16,16,16,16,16,31}; return v[row]; }
+        case 'M': { const uint8_t v[7]={17,27,21,21,17,17,17}; return v[row]; }
+        case 'N': { const uint8_t v[7]={17,25,21,19,17,17,17}; return v[row]; }
+        case 'O': { const uint8_t v[7]={14,17,17,17,17,17,14}; return v[row]; }
+        case 'P': { const uint8_t v[7]={30,17,17,30,16,16,16}; return v[row]; }
+        case 'Q': { const uint8_t v[7]={14,17,17,17,21,18,13}; return v[row]; }
+        case 'R': { const uint8_t v[7]={30,17,17,30,20,18,17}; return v[row]; }
+        case 'S': { const uint8_t v[7]={15,16,16,14,1,1,30}; return v[row]; }
+        case 'T': { const uint8_t v[7]={31,4,4,4,4,4,4}; return v[row]; }
+        case 'U': { const uint8_t v[7]={17,17,17,17,17,17,14}; return v[row]; }
+        case 'V': { const uint8_t v[7]={17,17,17,17,17,10,4}; return v[row]; }
+        case 'W': { const uint8_t v[7]={17,17,17,21,21,21,10}; return v[row]; }
+        case 'X': { const uint8_t v[7]={17,17,10,4,10,17,17}; return v[row]; }
+        case 'Y': { const uint8_t v[7]={17,17,10,4,4,4,4}; return v[row]; }
+        case 'Z': { const uint8_t v[7]={31,1,2,4,8,16,31}; return v[row]; }
+        case '0': { const uint8_t v[7]={14,17,19,21,25,17,14}; return v[row]; }
+        case '1': { const uint8_t v[7]={4,12,4,4,4,4,14}; return v[row]; }
+        case '2': { const uint8_t v[7]={14,17,1,2,4,8,31}; return v[row]; }
+        case '3': { const uint8_t v[7]={30,1,1,14,1,1,30}; return v[row]; }
+        case '4': { const uint8_t v[7]={2,6,10,18,31,2,2}; return v[row]; }
+        case '5': { const uint8_t v[7]={31,16,16,30,1,1,30}; return v[row]; }
+        case '6': { const uint8_t v[7]={14,16,16,30,17,17,14}; return v[row]; }
+        case '7': { const uint8_t v[7]={31,1,2,4,8,8,8}; return v[row]; }
+        case '8': { const uint8_t v[7]={14,17,17,14,17,17,14}; return v[row]; }
+        case '9': { const uint8_t v[7]={14,17,17,15,1,1,14}; return v[row]; }
+        case '-': { const uint8_t v[7]={0,0,0,31,0,0,0}; return v[row]; }
+        case ':': { const uint8_t v[7]={0,4,4,0,4,4,0}; return v[row]; }
+        case '.': { const uint8_t v[7]={0,0,0,0,0,12,12}; return v[row]; }
+        case '/': { const uint8_t v[7]={1,2,2,4,8,8,16}; return v[row]; }
+        case '+': { const uint8_t v[7]={0,4,4,31,4,4,0}; return v[row]; }
+        default: return 0;
+    }
+}
+
+static void custom_ui_add_rect(std::vector<CustomUiVertex> &vertices,
+                               float x0, float y0, float x1, float y1,
+                               float width, float height,
+                               float r, float g, float b, float a) {
+    const float left = 2.0f * x0 / width - 1.0f;
+    const float right = 2.0f * x1 / width - 1.0f;
+    const float top = 1.0f - 2.0f * y0 / height;
+    const float bottom = 1.0f - 2.0f * y1 / height;
+    const CustomUiVertex v0{left, top, r, g, b, a};
+    const CustomUiVertex v1{right, top, r, g, b, a};
+    const CustomUiVertex v2{right, bottom, r, g, b, a};
+    const CustomUiVertex v3{left, bottom, r, g, b, a};
+    vertices.push_back(v0); vertices.push_back(v1); vertices.push_back(v2);
+    vertices.push_back(v0); vertices.push_back(v2); vertices.push_back(v3);
+}
+
+static void custom_ui_add_text(std::vector<CustomUiVertex> &vertices,
+                               const char *text, float x, float y, float scale,
+                               float width, float height,
+                               float r, float g, float b, float a) {
+    if (!text || scale <= 0.0f) return;
+    float cursor = x;
+    for (const char *p = text; *p; ++p) {
+        char ch = *p;
+        if (ch >= 'a' && ch <= 'z') ch = static_cast<char>(ch - 'a' + 'A');
+        for (int row = 0; row < 7; ++row) {
+            const uint8_t bits = custom_ui_glyph_row(ch, row);
+            for (int col = 0; col < 5; ++col) {
+                if ((bits & (1u << (4 - col))) != 0) {
+                    const float px = cursor + static_cast<float>(col) * scale;
+                    const float py = y + static_cast<float>(row) * scale;
+                    custom_ui_add_rect(vertices, px, py, px + scale * 0.82f,
+                                       py + scale * 0.82f, width, height, r, g, b, a);
+                }
+            }
+        }
+        cursor += scale * 6.0f;
+    }
+}
+
+static bool custom_ui_build_program(void) {
+    if (UI.ready && UI.context == eglGetCurrentContext()) return true;
+    UI = {};
+    UI.context = eglGetCurrentContext();
+    if (UI.context == EGL_NO_CONTEXT) return false;
+    const GLubyte *version = glGetString(GL_VERSION);
+    UI.es3 = version && strstr(reinterpret_cast<const char *>(version), "OpenGL ES 3") != nullptr;
+    const char *vs2 =
+        "attribute vec2 aPos; attribute vec4 aColor; varying vec4 vColor;"
+        "void main(){gl_Position=vec4(aPos,0.0,1.0);vColor=aColor;}";
+    const char *fs2 =
+        "precision mediump float; varying vec4 vColor;"
+        "void main(){gl_FragColor=vColor;}";
+    const char *vs3 =
+        "#version 300 es\nprecision highp float; in vec2 aPos; in vec4 aColor; out vec4 vColor;"
+        "void main(){gl_Position=vec4(aPos,0.0,1.0);vColor=aColor;}";
+    const char *fs3 =
+        "#version 300 es\nprecision mediump float; in vec4 vColor; out vec4 fragColor;"
+        "void main(){fragColor=vColor;}";
+    const char *vsSource = UI.es3 ? vs3 : vs2;
+    const char *fsSource = UI.es3 ? fs3 : fs2;
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    if (!vs || !fs) {
+        if (vs) glDeleteShader(vs);
+        if (fs) glDeleteShader(fs);
+        return false;
+    }
+    glShaderSource(vs, 1, &vsSource, nullptr);
+    glShaderSource(fs, 1, &fsSource, nullptr);
+    glCompileShader(vs);
+    glCompileShader(fs);
+    GLint vsOk = GL_FALSE, fsOk = GL_FALSE;
+    glGetShaderiv(vs, GL_COMPILE_STATUS, &vsOk);
+    glGetShaderiv(fs, GL_COMPILE_STATUS, &fsOk);
+    if (vsOk != GL_TRUE || fsOk != GL_TRUE) {
+        glDeleteShader(vs); glDeleteShader(fs);
+        return false;
+    }
+    UI.program = glCreateProgram();
+    if (!UI.program) {
+        glDeleteShader(vs); glDeleteShader(fs);
+        return false;
+    }
+    glAttachShader(UI.program, vs);
+    glAttachShader(UI.program, fs);
+    glBindAttribLocation(UI.program, 0, "aPos");
+    glBindAttribLocation(UI.program, 1, "aColor");
+    glLinkProgram(UI.program);
+    glDeleteShader(vs); glDeleteShader(fs);
+    GLint linked = GL_FALSE;
+    glGetProgramiv(UI.program, GL_LINK_STATUS, &linked);
+    if (linked != GL_TRUE) {
+        glDeleteProgram(UI.program); UI.program = 0;
+        return false;
+    }
+    UI.position = glGetAttribLocation(UI.program, "aPos");
+    UI.color = glGetAttribLocation(UI.program, "aColor");
+    glGenBuffers(1, &UI.vbo);
+    if (UI.es3) glGenVertexArrays(1, &UI.vao);
+    if (UI.position < 0 || UI.color < 0 || !UI.vbo || (UI.es3 && !UI.vao)) {
+        if (UI.vao) glDeleteVertexArrays(1, &UI.vao);
+        if (UI.vbo) glDeleteBuffers(1, &UI.vbo);
+        glDeleteProgram(UI.program);
+        UI = {};
+        return false;
+    }
+    UI.ready = true;
+    return true;
+}
+
+static void custom_ui_draw_batch(const std::vector<CustomUiVertex> &vertices,
+                                 int width, int height) {
+    if (vertices.empty() || !custom_ui_build_program()) return;
+    GLint oldProgram = 0, oldBuffer = 0, oldViewport[4] = {0,0,0,0};
+    GLint oldSrcRgb = GL_SRC_ALPHA, oldDstRgb = GL_ONE_MINUS_SRC_ALPHA;
+    GLint oldSrcA = GL_SRC_ALPHA, oldDstA = GL_ONE_MINUS_SRC_ALPHA;
+    GLint oldEqRgb = GL_FUNC_ADD, oldEqA = GL_FUNC_ADD, oldVao = 0;
+    const GLboolean wasBlend = glIsEnabled(GL_BLEND);
+    const GLboolean wasDepth = glIsEnabled(GL_DEPTH_TEST);
+    const GLboolean wasScissor = glIsEnabled(GL_SCISSOR_TEST);
+    const GLboolean wasCull = glIsEnabled(GL_CULL_FACE);
+    const GLboolean wasStencil = glIsEnabled(GL_STENCIL_TEST);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &oldProgram);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &oldBuffer);
+    glGetIntegerv(GL_VIEWPORT, oldViewport);
+    glGetIntegerv(GL_BLEND_SRC_RGB, &oldSrcRgb);
+    glGetIntegerv(GL_BLEND_DST_RGB, &oldDstRgb);
+    glGetIntegerv(GL_BLEND_SRC_ALPHA, &oldSrcA);
+    glGetIntegerv(GL_BLEND_DST_ALPHA, &oldDstA);
+    glGetIntegerv(GL_BLEND_EQUATION_RGB, &oldEqRgb);
+    glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &oldEqA);
+    GLint a0Enabled=0,a0Size=2,a0Type=GL_FLOAT,a0Normalized=0,a0Stride=0,a0Buffer=0;
+    GLint a1Enabled=0,a1Size=4,a1Type=GL_FLOAT,a1Normalized=0,a1Stride=0,a1Buffer=0;
+    void *a0Pointer=nullptr,*a1Pointer=nullptr;
+    if (UI.es3) {
+        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &oldVao);
+        glBindVertexArray(UI.vao);
+    } else {
+        glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &a0Enabled);
+        glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_SIZE, &a0Size);
+        glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_TYPE, &a0Type);
+        glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_NORMALIZED, &a0Normalized);
+        glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &a0Stride);
+        glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &a0Buffer);
+        glGetVertexAttribPointerv(0, GL_VERTEX_ATTRIB_ARRAY_POINTER, &a0Pointer);
+        glGetVertexAttribiv(1, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &a1Enabled);
+        glGetVertexAttribiv(1, GL_VERTEX_ATTRIB_ARRAY_SIZE, &a1Size);
+        glGetVertexAttribiv(1, GL_VERTEX_ATTRIB_ARRAY_TYPE, &a1Type);
+        glGetVertexAttribiv(1, GL_VERTEX_ATTRIB_ARRAY_NORMALIZED, &a1Normalized);
+        glGetVertexAttribiv(1, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &a1Stride);
+        glGetVertexAttribiv(1, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &a1Buffer);
+        glGetVertexAttribPointerv(1, GL_VERTEX_ATTRIB_ARRAY_POINTER, &a1Pointer);
+    }
+
+    glViewport(0, 0, width, height);
+    if (wasDepth) glDisable(GL_DEPTH_TEST);
+    if (wasScissor) glDisable(GL_SCISSOR_TEST);
+    if (wasCull) glDisable(GL_CULL_FACE);
+    if (wasStencil) glDisable(GL_STENCIL_TEST);
+    glEnable(GL_BLEND);
+    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                        GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(UI.program);
+    glBindBuffer(GL_ARRAY_BUFFER, UI.vbo);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(vertices.size() * sizeof(CustomUiVertex)),
+                 vertices.data(), GL_STREAM_DRAW);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(CustomUiVertex),
+                          reinterpret_cast<const void *>(offsetof(CustomUiVertex, x)));
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(CustomUiVertex),
+                          reinterpret_cast<const void *>(offsetof(CustomUiVertex, r)));
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertices.size()));
+
+    if (UI.es3) {
+        glBindVertexArray(static_cast<GLuint>(oldVao));
+    } else {
+        glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(a0Buffer));
+        glVertexAttribPointer(0, a0Size, static_cast<GLenum>(a0Type), a0Normalized,
+                              a0Stride, a0Pointer);
+        if (!a0Enabled) glDisableVertexAttribArray(0);
+        else glEnableVertexAttribArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(a1Buffer));
+        glVertexAttribPointer(1, a1Size, static_cast<GLenum>(a1Type), a1Normalized,
+                              a1Stride, a1Pointer);
+        if (!a1Enabled) glDisableVertexAttribArray(1);
+        else glEnableVertexAttribArray(1);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(oldBuffer));
+    glUseProgram(static_cast<GLuint>(oldProgram));
+    glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+    glBlendEquationSeparate(oldEqRgb, oldEqA);
+    glBlendFuncSeparate(oldSrcRgb, oldDstRgb, oldSrcA, oldDstA);
+    if (wasBlend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+    if (wasDepth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+    if (wasScissor) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
+    if (wasCull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+    if (wasStencil) glEnable(GL_STENCIL_TEST); else glDisable(GL_STENCIL_TEST);
+}
+
+static void draw_customization_ui(EGLDisplay display, EGLSurface surface) {
+    if (g_customization_open.load(std::memory_order_acquire) == 0) return;
+    if (eglGetCurrentContext() == EGL_NO_CONTEXT) return;
+    EGLint width = 0, height = 0;
+    if (eglQuerySurface(display, surface, EGL_WIDTH, &width) != EGL_TRUE ||
+        eglQuerySurface(display, surface, EGL_HEIGHT, &height) != EGL_TRUE ||
+        width <= 0 || height <= 0) return;
+
+    float tapX = 0.0f, tapY = 0.0f;
+    if (take_customization_tap(&tapX, &tapY)) {
+        if (tapY >= 0.19f && tapY <= 0.34f && tapX >= 0.07f && tapX <= 0.93f) {
+            const uint32_t tab = tapX < 0.36f ? 0u : (tapX < 0.64f ? 1u : 2u);
+            g_customization_tab.store(tab, std::memory_order_release);
+        } else if (tapY >= 0.77f && tapY <= 0.91f && tapX >= 0.72f) {
+            (void)shotmeter_plugin_close_customization();
+        } else if (tapY >= 0.38f && tapY <= 0.75f) {
+            const uint32_t tab = g_customization_tab.load(std::memory_order_acquire);
+            const uint32_t category = tab == 0 ? SHOTMETER_PLUGIN_CATEGORY_DESIGN :
+                (tab == 1 ? SHOTMETER_PLUGIN_CATEGORY_AUDIO :
+                            SHOTMETER_PLUGIN_CATEGORY_GREEN_ANIMATION);
+            (void)shotmeter_plugin_set_selection(category, 0u);
+        }
+    }
+    if (g_customization_open.load(std::memory_order_acquire) == 0) return;
+
+    std::vector<CustomUiVertex> v;
+    v.reserve(14000);
+    const float w = static_cast<float>(width), h = static_cast<float>(height);
+    const float panelL = 0.055f*w, panelT = 0.075f*h;
+    const float panelR = 0.945f*w, panelB = 0.925f*h;
+    const uint32_t tab = g_customization_tab.load(std::memory_order_acquire);
+
+    custom_ui_add_rect(v,0,0,w,h,w,h,0.015f,0.020f,0.030f,0.72f);
+    custom_ui_add_rect(v,panelL,panelT,panelR,panelB,w,h,0.055f,0.070f,0.095f,0.98f);
+    custom_ui_add_rect(v,panelL,panelT,panelR,panelT+0.012f*h,w,h,0.17f,0.78f,0.32f,1.0f);
+    custom_ui_add_rect(v,panelL+0.02f*w,panelT+0.09f*h,panelR-0.02f*w,panelT+0.0915f*h,w,h,
+                       0.25f,0.32f,0.40f,0.75f);
+
+    custom_ui_add_text(v,"POT SHOTMETER",panelL+0.035f*w,panelT+0.035f*h,
+                       std::max(2.0f,h/170.0f),w,h,0.93f,0.97f,1.0f,1.0f);
+
+    const float tabTop=panelT+0.12f*h, tabBottom=panelT+0.245f*h;
+    const float tabLeft=panelL+0.02f*w, tabRight=panelR-0.02f*w;
+    const float tabWidth=(tabRight-tabLeft)/3.0f;
+    const float activeL=tabLeft+static_cast<float>(tab)*tabWidth;
+    custom_ui_add_rect(v,tabLeft,tabTop,tabRight,tabBottom,w,h,0.035f,0.045f,0.065f,1.0f);
+    custom_ui_add_rect(v,activeL,tabTop,activeL+tabWidth,tabBottom,w,h,
+                       0.10f,0.24f,0.17f,1.0f);
+    custom_ui_add_rect(v,activeL,tabBottom-0.006f*h,activeL+tabWidth,tabBottom,w,h,
+                       0.22f,0.95f,0.40f,1.0f);
+    const float tabTextScale=std::max(1.4f,h/470.0f);
+    custom_ui_add_text(v,"DESIGN",tabLeft+0.045f*w,tabTop+0.045f*h,tabTextScale,w,h,
+                       tab==0?0.45f:0.72f,tab==0?1.0f:0.78f,tab==0?0.60f:0.88f,1.0f);
+    custom_ui_add_text(v,"AUDIO",tabLeft+tabWidth+0.075f*w,tabTop+0.045f*h,tabTextScale,w,h,
+                       tab==1?0.45f:0.72f,tab==1?1.0f:0.78f,tab==1?0.60f:0.88f,1.0f);
+    custom_ui_add_text(v,"GREEN ANIMATION",tabLeft+2.0f*tabWidth+0.025f*w,
+                       tabTop+0.055f*h,std::max(1.0f,h/650.0f),w,h,
+                       tab==2?0.45f:0.72f,tab==2?1.0f:0.78f,tab==2?0.60f:0.88f,1.0f);
+
+    const float contentTop=panelT+0.29f*h, contentBottom=panelB-0.12f*h;
+    const float left=panelL+0.035f*w, mid=panelL+0.48f*w, right=panelR-0.035f*w;
+    custom_ui_add_rect(v,left,contentTop,right,contentBottom,w,h,0.035f,0.047f,0.066f,1.0f);
+    custom_ui_add_rect(v,left+0.012f*w,contentTop+0.018f*h,mid-0.015f*w,contentBottom-0.018f*h,
+                       w,h,0.075f,0.095f,0.12f,1.0f);
+    custom_ui_add_rect(v,mid+0.01f*w,contentTop+0.018f*h,right-0.012f*w,contentBottom-0.018f*h,
+                       w,h,0.045f,0.060f,0.080f,1.0f);
+
+    const char *section = tab==0 ? "METER DESIGNS" : (tab==1 ? "AUDIO EFFECTS" : "GREEN ANIMATIONS");
+    const char *item = tab==0 ? "HORN METER" : (tab==1 ? "GREEN GIANT" : "CLAUDE FLAME");
+    const char *detail = tab==0 ? "CUSTOM METER PREVIEW" :
+                         (tab==1 ? "PERFECT RELEASE SOUND" : "HEAD ANCHORED FLAME");
+    const float labelScale=std::max(1.5f,h/560.0f);
+    custom_ui_add_text(v,section,left+0.03f*w,contentTop+0.05f*h,labelScale,w,h,
+                       0.56f,0.90f,0.68f,1.0f);
+    custom_ui_add_rect(v,left+0.02f*w,contentTop+0.12f*h,mid-0.03f*w,
+                       contentTop+0.122f*h,w,h,0.22f,0.30f,0.37f,1.0f);
+    custom_ui_add_rect(v,left+0.02f*w,contentTop+0.16f*h,mid-0.03f*w,
+                       contentTop+0.31f*h,w,h,0.09f,0.14f,0.17f,1.0f);
+    custom_ui_add_rect(v,left+0.02f*w,contentTop+0.16f*h,left+0.035f*w,
+                       contentTop+0.31f*h,w,h,0.20f,0.90f,0.38f,1.0f);
+    custom_ui_add_text(v,item,left+0.055f*w,contentTop+0.19f*h,labelScale,w,h,
+                       0.93f,0.97f,1.0f,1.0f);
+    custom_ui_add_text(v,"SELECTED",left+0.055f*w,contentTop+0.255f*h,
+                       std::max(1.2f,h/680.0f),w,h,0.45f,0.90f,0.60f,1.0f);
+    custom_ui_add_text(v,detail,left+0.03f*w,contentTop+0.36f*h,
+                       std::max(1.1f,h/690.0f),w,h,0.64f,0.72f,0.80f,1.0f);
+
+    custom_ui_add_text(v,"PREVIEW",mid+0.035f*w,contentTop+0.05f*h,labelScale,w,h,
+                       0.76f,0.84f,0.93f,1.0f);
+    const float previewX=mid+0.04f*w, previewY=contentTop+0.12f*h;
+    const float previewW=right-mid-0.085f*w, previewH=contentBottom-contentTop-0.18f*h;
+    if (tab == 0) {
+        if (G.ctx != eglGetCurrentContext()) {
+            G = {};
+            G.ctx = eglGetCurrentContext();
+        }
+        if (!G.ok) {
+            const int initCode=init_horn_gl();
+            G.ok=(initCode==0);
+            g_shader_init_code.store(initCode,std::memory_order_relaxed);
+        }
+        if (G.ok) {
+            const int ax=static_cast<int>(previewX+previewW*0.50f);
+            const int ay=static_cast<int>(previewY+previewH*0.78f);
+            draw_horn(width,height,ax,ay,0.68f,false,-1,false,0.0f);
+        }
+    } else if (tab == 2) {
+        if (G.ctx != eglGetCurrentContext()) {
+            G = {};
+            G.ctx = eglGetCurrentContext();
+        }
+        if (!G.ok) {
+            const int initCode=init_horn_gl();
+            G.ok=(initCode==0);
+            g_shader_init_code.store(initCode,std::memory_order_relaxed);
+        }
+        if (G.ok && !G.flameOk) (void)init_claude_flame_gl();
+        if (G.flameOk) {
+            const int ax=static_cast<int>(previewX+previewW*0.50f);
+            const int ay=static_cast<int>(previewY+previewH*0.72f);
+            (void)draw_claude_flame(height,ax,ay,0.9f,0.35f);
+        }
+    } else {
+        const float barW=previewW/9.0f;
+        for(int i=0;i<7;++i) {
+            const float fraction=static_cast<float>((i*17)%9+1)/10.0f;
+            const float bh=previewH*(0.20f+0.65f*fraction);
+            custom_ui_add_rect(v,previewX+barW*(static_cast<float>(i)+1.0f),
+                previewY+previewH-bh,previewX+barW*(static_cast<float>(i)+1.0f)+barW*0.45f,
+                previewY+previewH,w,h,0.12f,0.85f,0.38f,0.9f);
+        }
+    }
+
+    const float footerY=panelB-0.095f*h;
+    custom_ui_add_rect(v,panelL+0.02f*w,footerY,panelR-0.02f*w,panelB-0.025f*h,
+                       w,h,0.035f,0.045f,0.062f,1.0f);
+    custom_ui_add_rect(v,panelR-0.18f*w,footerY+0.01f*h,panelR-0.035f*w,
+                       panelB-0.04f*h,w,h,0.10f,0.28f,0.18f,1.0f);
+    custom_ui_add_text(v,"BACK",panelR-0.135f*w,footerY+0.035f*h,
+                       std::max(1.5f,h/570.0f),w,h,0.80f,1.0f,0.86f,1.0f);
+    custom_ui_add_text(v,"TAP A TAB OR ITEM",panelL+0.04f*w,footerY+0.035f*h,
+                       std::max(1.2f,h/680.0f),w,h,0.48f,0.58f,0.70f,1.0f);
+
+    custom_ui_draw_batch(v,width,height);
 }
 
 static int32_t save_plugin_settings_internal(void) {
