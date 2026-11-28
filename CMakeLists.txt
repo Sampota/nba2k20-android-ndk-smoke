@@ -1031,12 +1031,13 @@ set_target_properties(shotmeter_dobby_v70_native_constructor_no_vm_agent PROPERT
 set(_shotmeter_dobby_v71_agent_map
     "${CMAKE_CURRENT_BINARY_DIR}/shotmeter-agent-dobby-v71.map.txt")
 file(WRITE "${_shotmeter_dobby_v71_agent_map}"
-    "{ global: Agent_OnAttach; Agent_OnUnload; JNI_OnLoad; local: *; };")
+    "{ global: Agent_OnAttach; Agent_OnUnload; JNI_OnLoad; shotmeter_plugin_*; local: *; };")
 add_library(shotmeter_dobby_v71_green_fps_agent
     SHARED src/shotmeter_dobby_v71_green_fps.cpp)
 target_link_libraries(shotmeter_dobby_v71_green_fps_agent PRIVATE
     dobby_static ${android_log} ${android_dl} ${android_egl} ${android_glesv3} ${android_opensles}
     c++_shared)
+target_include_directories(shotmeter_dobby_v71_green_fps_agent PRIVATE include)
 target_compile_features(shotmeter_dobby_v71_green_fps_agent PRIVATE cxx_std_17)
 target_compile_options(shotmeter_dobby_v71_green_fps_agent PRIVATE
     -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-parameter -fvisibility=hidden)
