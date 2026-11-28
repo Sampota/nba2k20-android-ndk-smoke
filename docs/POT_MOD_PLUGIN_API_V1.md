@@ -30,7 +30,10 @@ Selection categories are DESIGN, AUDIO, and GREEN_ANIMATION. Selection IDs are o
 - Default state is OFF.
 - OFF suppresses plugin-owned meter drawing, result feedback, sound requests, and probability remapping. The original game release handler is still forwarded unchanged.
 - ON restores existing v71 plugin behavior.
-- Customization-open is currently an API state flag only. The actual plugin-owned customization renderer, tab/list presentation, and touch handling are not yet implemented; the API deliberately does not advertise those as available capabilities.
+- The plugin currently has an initial GLES2/GLES3 customization-screen scaffold with DESIGN, AUDIO, and GREEN ANIMATION tabs, a sample HORN METER preview, Green Giant audio page, and Claude Flame preview.
+- The UI is not yet a complete catalogue: each tab currently shows a single prototype item (selection ID 0). A multi-design/multi-audio/multi-animation list and per-design preview registry remain to be implemented.
+- Touch input is intercepted only while customization is open. On this game build, PushEvent emits ACTION_DOWN as type 0, POINTER_DOWN as type 1, MOVE as type 2, CANCEL as type 3; ACTION_UP is not emitted through this queue. The UI activates items on type 0 and forwards touch events to the game whenever the UI is closed.
+- The custom UI is a work-in-progress plugin screen, not yet runtime-tested on-device.
 
 ## Compatibility and release requirements
 - Keep the C ABI versioned. Add future selection categories without changing existing function signatures.
