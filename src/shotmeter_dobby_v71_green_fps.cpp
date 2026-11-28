@@ -127,7 +127,6 @@ static std::atomic<uint32_t> g_customization_open{0};
 static std::atomic<uint32_t> g_plugin_settings_loaded{0};
 static std::atomic<uint32_t> g_plugin_settings_modified{0};
 static std::atomic<uint32_t> g_customization_tab{0};
-static std::atomic<uint32_t> g_ui_render_failures{0};
 static std::atomic<uint32_t> g_selected_design{0};
 static std::atomic<uint32_t> g_selected_audio{0};
 static std::atomic<uint32_t> g_selected_green_animation{0};
