@@ -112,6 +112,7 @@ static std::atomic<uint32_t> g_init_state{0};
 static std::atomic<uint32_t> g_plugin_enabled{0};
 static std::atomic<uint32_t> g_customization_open{0};
 static std::atomic<uint32_t> g_plugin_settings_loaded{0};
+static std::atomic<uint32_t> g_plugin_settings_modified{0};
 static std::atomic<uint32_t> g_selected_design{0};
 static std::atomic<uint32_t> g_selected_audio{0};
 static std::atomic<uint32_t> g_selected_green_animation{0};
@@ -2008,6 +2009,9 @@ static int32_t save_plugin_settings(void) {
 }
 
 static void load_plugin_settings(void) {
+    /* A menu API write made before the bootstrap finished takes precedence
+       over any older on-disk setting that has not yet been read. */
+    if (g_plugin_settings_modified.load(std::memory_order_acquire) != 0) return;
     char path[256];
     const int path_len = snprintf(path, sizeof(path), "%s/%s",
                                   FILES_DIR, "shotmeter.plugin-settings-v1");
@@ -2049,6 +2053,7 @@ extern "C" __attribute__((visibility("default")))
 int32_t shotmeter_plugin_set_enabled(uint32_t enabled) {
     if (enabled > 1) return SHOTMETER_PLUGIN_ERROR_ARGUMENT;
     g_plugin_enabled.store(enabled, std::memory_order_release);
+    g_plugin_settings_modified.store(1, std::memory_order_release);
     if (enabled == 0) {
         g_result_until_ns.store(0, std::memory_order_release);
         g_perfect_until_ns.store(0, std::memory_order_release);
@@ -2089,12 +2094,15 @@ int32_t shotmeter_plugin_set_selection(uint32_t category, uint32_t selection_id)
     switch (category) {
         case SHOTMETER_PLUGIN_CATEGORY_DESIGN:
             g_selected_design.store(selection_id, std::memory_order_release);
+            g_plugin_settings_modified.store(1, std::memory_order_release);
             break;
         case SHOTMETER_PLUGIN_CATEGORY_AUDIO:
             g_selected_audio.store(selection_id, std::memory_order_release);
+            g_plugin_settings_modified.store(1, std::memory_order_release);
             break;
         case SHOTMETER_PLUGIN_CATEGORY_GREEN_ANIMATION:
             g_selected_green_animation.store(selection_id, std::memory_order_release);
+            g_plugin_settings_modified.store(1, std::memory_order_release);
             break;
         default:
             return SHOTMETER_PLUGIN_ERROR_ARGUMENT;
