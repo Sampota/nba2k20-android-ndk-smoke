@@ -1,0 +1,39 @@
+# POT MOD / shotmeter plugin API v1
+
+## Ownership boundary
+- Main game library owns native menu navigation and the single POT MOD row: `SHOTMETER < OFF >`.
+- `libshotmeter.so` owns meter rendering, audio/green feedback, customization data, and the separate customization interface.
+- The main library must not depend on individual design IDs or internal rendering code.
+
+## Loading contract
+The v71 dependency constructor starts the shotmeter bootstrap when Android loads `libshotmeter.so` through the game's ELF dependency chain. The main library can resolve the exported API by `dlsym` after verifying the loaded module and ABI version.
+
+## API v1
+Header: `include/shotmeter_plugin_api.h`
+
+Exports:
+- `shotmeter_plugin_get_api_version`
+- `shotmeter_plugin_get_capabilities`
+- `shotmeter_plugin_set_enabled`
+- `shotmeter_plugin_get_enabled`
+- `shotmeter_plugin_open_customization`
+- `shotmeter_plugin_close_customization`
+- `shotmeter_plugin_is_customization_open`
+- `shotmeter_plugin_set_selection`
+- `shotmeter_plugin_get_selection`
+- `shotmeter_plugin_flush_settings`
+- `shotmeter_plugin_get_init_state`
+
+Selection categories are DESIGN, AUDIO, and GREEN_ANIMATION. Selection IDs are opaque 0..255 values to the main library. The plugin persists enable state and selection IDs in its app-private settings file.
+
+## Current behavior in this incremental build
+- Default state is OFF.
+- OFF suppresses plugin-owned meter drawing, result feedback, sound requests, and probability remapping. The original game release handler is still forwarded unchanged.
+- ON restores existing v71 plugin behavior.
+- Customization-open is currently an API state flag only. The actual plugin-owned customization renderer, tab/list presentation, and touch handling are not yet implemented; the API deliberately does not advertise those as available capabilities.
+
+## Compatibility and release requirements
+- Keep the C ABI versioned. Add future selection categories without changing existing function signatures.
+- New meter designs and visual/audio assets belong in the shotmeter plugin, not the main game library.
+- Main-library menu integration must check the ABI version and capabilities before calling functions.
+- Never package a host-only ELF or an unverified build. Validate ARM64 ELF type, SONAME, exported symbols, dependencies, and the untouched clean game-library hash before producing a test APK.
