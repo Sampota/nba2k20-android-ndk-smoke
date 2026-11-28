@@ -1984,9 +1984,10 @@ static EGLBoolean swap_proxy(EGLDisplay display, EGLSurface surface) {
 
 /*
  * Native touch ingress contract verified from VCBoot_AndroidMain:
- * event type 0=down, 1=up, 2=move, 3=cancel; coordinates are normalized
- * against the current game surface. While the plugin customization page is
- * modal, do not forward those events to VCTOUCH_DEVICE's game queue.
+ * 0=ACTION_DOWN, 1=ACTION_POINTER_DOWN, 2=ACTION_MOVE, 3=ACTION_CANCEL.
+ * ACTION_UP is not sent through PushEvent on this build. Coordinates are
+ * normalized against the current game surface. A UI tap is therefore emitted
+ * at ACTION_DOWN, not by waiting for a non-existent ACTION_UP event.
  */
 static void touch_event_proxy(void *device, int32_t event_type, int32_t pointer_id,
                               float x, float y, int32_t flags) {
@@ -1997,26 +1998,29 @@ static void touch_event_proxy(void *device, int32_t event_type, int32_t pointer_
             return;
         }
         g_touch_event_counts[event_type].fetch_add(1, std::memory_order_relaxed);
-        store_float(g_ui_touch_x_bits, x);
-        store_float(g_ui_touch_y_bits, y);
 
         if (event_type == 0) {
-            int32_t expected_pointer = -1;
-            if (g_ui_touch_pointer_id.compare_exchange_strong(
-                    expected_pointer, pointer_id, std::memory_order_acq_rel)) {
-                g_ui_touch_down.store(1, std::memory_order_release);
+            /* ACTION_DOWN is the UI's tap edge. The game queue is deliberately
+               consumed while the plugin page is modal. */
+            store_float(g_ui_touch_x_bits, x);
+            store_float(g_ui_touch_y_bits, y);
+            store_float(g_ui_tap_x_bits, x);
+            store_float(g_ui_tap_y_bits, y);
+            g_ui_tap_sequence.fetch_add(1, std::memory_order_acq_rel);
+            g_ui_touch_pointer_id.store(pointer_id, std::memory_order_release);
+            g_ui_touch_down.store(1, std::memory_order_release);
+        } else if (event_type == 1) {
+            /* Secondary pointers are tracked but do not activate UI items. */
+            store_float(g_ui_touch_x_bits, x);
+            store_float(g_ui_touch_y_bits, y);
+        } else if (event_type == 2) {
+            if (g_ui_touch_pointer_id.load(std::memory_order_acquire) == pointer_id) {
+                store_float(g_ui_touch_x_bits, x);
+                store_float(g_ui_touch_y_bits, y);
             }
-        } else if (g_ui_touch_pointer_id.load(std::memory_order_acquire) == pointer_id) {
-            if (event_type == 1) {
-                store_float(g_ui_tap_x_bits, x);
-                store_float(g_ui_tap_y_bits, y);
-                g_ui_tap_sequence.fetch_add(1, std::memory_order_acq_rel);
-                g_ui_touch_down.store(0, std::memory_order_release);
-                g_ui_touch_pointer_id.store(-1, std::memory_order_release);
-            } else if (event_type == 3) {
-                g_ui_touch_down.store(0, std::memory_order_release);
-                g_ui_touch_pointer_id.store(-1, std::memory_order_release);
-            }
+        } else if (event_type == 3) {
+            g_ui_touch_down.store(0, std::memory_order_release);
+            g_ui_touch_pointer_id.store(-1, std::memory_order_release);
         }
         return;
     }
