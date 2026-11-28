@@ -10,7 +10,7 @@
 ## OPTIONS slide-on menu
 - Descriptor symbol: `SlideOnNav_OptionsMenu` at ELF VA `0x2ab3288`, size 224.
 - Child-entry base pointer: descriptor offset `+0x58` -> `0x2ab3528`.
-- Entry count: descriptor offset `+0xB4` -> 8.
+- Entry count: descriptor offset `+0xB0` -> 8 (re-read directly from the file-backed `.data` object).
 - Entry stride: `0xEA8` bytes, not `0x38`.
 - This stride is verified in the game's own `NavigationMenu_SetupItems` (VA `0xF40748`) and `NavigationMenu_CreateMenuItems` (VA `0xF40978`). Both use the descriptor count at `+0xB0`, base pointer at `+0x58`, and iterate by `0xEA8`.
 - The previous 0x38 scan of the outer OPTIONS table was incorrect. The 0x38 stride appears in nested/runtime sub-item structures.
@@ -34,14 +34,14 @@ The existing records also have `+0xE88 = 1` and `+0xE98 = 0xFFFFFFFF`. These fie
 ## Ninth OPTIONS row: allocation and index-limit findings
 - The 8 existing OPTIONS records occupy exactly `8 * 0xEA8 = 0x7540` bytes, from `0x2AB3528` through the exclusive end address `0x2ABAA68`.
 - `SlideOnNav_PlayoffsOptionsMenu` begins its own two-record table at exactly `0x2ABAA68`. Its descriptor is at `0x2AB3368`, base pointer at `+0x58 = 0x2ABAA68`, count at `+0xB0 = 2`. Therefore the apparent ninth slot is occupied by the Playoffs Options table and must not be overwritten.
-- `NavigationMenu_GetSubItemByIndex` at VA `0xF43F98` rejects an index above 7 at `0xF43FA0` (`cmp w2, #7`). Its implementation scans 0x38-byte child-subitem records inside a runtime item; this is a nested-subitem lookup, not the outer OPTIONS row-array lookup. Do not assume this check is the outer menu's nine-row limit.
+- `NavigationMenu_GetSubItemByIndex` at VA `0xF43F98` rejects an index above 7 at `0xF43FA0` (`cmp w2, #7`). Its implementation scans 0x38-byte child-subitem records inside a runtime item; this is a nested-subitem lookup, not the outer OPTIONS row-array lookup. Do not treat this check as an eight-row limit for the outer menu.
 - The outer row accessors `NavigationMenu_GetItemInstanceByRawRow`, `NavigationMenu_GetItemInstanceByDisplayRow`, and `NavigationMenu_GetNumberOfEnabledItems` use the descriptor's `+0xB0` count and `+0x58` base pointer dynamically. The outer display-row scan advances by `0xEA8`.
 - A ninth outer row therefore needs a separately allocated/copied 9-record `0xEA8` table (or an equally safe reserved region), with the same existing OPTIONS descriptor redirected to it and count updated. The Playoffs table must remain untouched. Before implementation, the activation path and the new row's `MENU_NAVIGATION_INSTANCE_ITEM` initialization/callback fields still need to be fully defined.
 
 ## Native GAMEPLAY row template
 - Menu page symbol: `OptionsMenu_GamePlay` at VA `0x273A008`, size 224.
 - Row pointer at page offset `+0x60` -> `0x273A9E0`.
-- Row count at page offset `+0xB4` -> 17.
+- Row count at page offset `+0xB0` -> 17 (re-read directly from the file-backed `.data` object).
 - Difficulty is row 0 at `0x273A9E0`; the native option-record stride is `0x38`.
 - Difficulty row fields: type `1`, name CRC `0x36288E4D`, description CRC `0x602E2CBC`, interface object pointer `0x2E673E0`.
 - The interface type is `MENU_OPTION_ITEM_BOOLRADIOBUTTON_INTERFACE`:
@@ -56,7 +56,8 @@ The existing records also have `+0xE88 = 1` and `+0xE98 = 0xFFFFFFFF`. These fie
 
 ## What this confirms / what it does not
 Confirmed:
-- The OPTIONS menu has eight populated native records, the correct outer stride is 0xEA8, and the stock index accessor has an explicit maximum index of 7.
+- The clean ELF contains the `SlideOnNav_OptionsMenu` descriptor and all eight current outer records in file-backed `.data`; the correct outer stride is 0xEA8 and the outer row accessors use the descriptor count dynamically.
+- The `+7` bounds check belongs to nested 0x38-byte sub-item lookup, not the outer row array.
 - The Difficulty control uses the stock bool-radio interface that produces the native arrow/value presentation.
 
 Not yet confirmed:
