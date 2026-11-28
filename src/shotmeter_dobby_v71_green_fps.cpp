@@ -2304,6 +2304,9 @@ static void custom_ui_draw_batch(const std::vector<CustomUiVertex> &vertices,
 static void draw_customization_ui(EGLDisplay display, EGLSurface surface) {
     if (g_customization_open.load(std::memory_order_acquire) == 0) return;
     if (eglGetCurrentContext() == EGL_NO_CONTEXT) return;
+    GLint framebuffer = -1;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
+    if (framebuffer != 0) return;
     EGLint width = 0, height = 0;
     if (eglQuerySurface(display, surface, EGL_WIDTH, &width) != EGL_TRUE ||
         eglQuerySurface(display, surface, EGL_HEIGHT, &height) != EGL_TRUE ||
@@ -2367,6 +2370,8 @@ static void draw_customization_ui(EGLDisplay display, EGLSurface surface) {
                        w,h,0.075f,0.095f,0.12f,1.0f);
     custom_ui_add_rect(v,mid+0.01f*w,contentTop+0.018f*h,right-0.012f*w,contentBottom-0.018f*h,
                        w,h,0.045f,0.060f,0.080f,1.0f);
+    custom_ui_draw_batch(v,width,height);
+    v.clear();
 
     const char *section = tab==0 ? "METER DESIGNS" : (tab==1 ? "AUDIO EFFECTS" : "GREEN ANIMATIONS");
     const char *item = tab==0 ? "HORN METER" : (tab==1 ? "GREEN GIANT" : "CLAUDE FLAME");
@@ -2388,8 +2393,6 @@ static void draw_customization_ui(EGLDisplay display, EGLSurface surface) {
     custom_ui_add_text(v,detail,left+0.03f*w,contentTop+0.36f*h,
                        std::max(1.1f,h/690.0f),w,h,0.64f,0.72f,0.80f,1.0f);
 
-    custom_ui_add_text(v,"PREVIEW",mid+0.035f*w,contentTop+0.05f*h,labelScale,w,h,
-                       0.76f,0.84f,0.93f,1.0f);
     const float previewX=mid+0.04f*w, previewY=contentTop+0.12f*h;
     const float previewW=right-mid-0.085f*w, previewH=contentBottom-contentTop-0.18f*h;
     if (tab == 0) {
@@ -2434,6 +2437,8 @@ static void draw_customization_ui(EGLDisplay display, EGLSurface surface) {
         }
     }
 
+    custom_ui_add_text(v,"PREVIEW",mid+0.035f*w,contentTop+0.05f*h,labelScale,w,h,
+                       0.76f,0.84f,0.93f,1.0f);
     const float footerY=panelB-0.095f*h;
     custom_ui_add_rect(v,panelL+0.02f*w,footerY,panelR-0.02f*w,panelB-0.025f*h,
                        w,h,0.035f,0.045f,0.062f,1.0f);
