@@ -20,6 +20,7 @@
 #include <time.h>
 
 #include "dobby.h"
+#include "shotmeter_plugin_api.h"
 #include "greengiant_ima_b64.h"
 #include "../Files/horn_font_atlas.h"
 
@@ -108,6 +109,13 @@ static int g_self_original = -999, g_self_patched = -999;
 static int g_do_draw_code = -999, g_swap_code = -999, g_release_event_code = -999;
 static std::atomic<uint32_t> g_attach_calls{0}, g_duplicate_attach_calls{0};
 static std::atomic<uint32_t> g_init_state{0};
+static std::atomic<uint32_t> g_plugin_enabled{1};
+static std::atomic<uint32_t> g_customization_open{0};
+static std::atomic<uint32_t> g_plugin_settings_loaded{0};
+static std::atomic<uint32_t> g_selected_design{0};
+static std::atomic<uint32_t> g_selected_audio{0};
+static std::atomic<uint32_t> g_selected_green_animation{0};
+static pthread_mutex_t g_plugin_settings_mutex = PTHREAD_MUTEX_INITIALIZER;
 static std::atomic<uint32_t> g_do_draw_calls{0}, g_projection_calls{0};
 static std::atomic<uint32_t> g_projection_invalid{0};
 static std::atomic<uint32_t> g_projection_valid{0};
@@ -340,7 +348,8 @@ static void balanced_dice_proxy(void *actor, void *ball, int32_t shot_type,
     int32_t grade_status = kGradeNotRequired;
     bool modified = false;
 
-    if (g_probability_enabled.load(std::memory_order_acquire) != 0 &&
+    if (g_plugin_enabled.load(std::memory_order_acquire) != 0 &&
+        g_probability_enabled.load(std::memory_order_acquire) != 0 &&
         timing >= 1 && timing <= 5) {
         /* At PHY_LaunchShotBalancedDiceRoll, s0 is the exact chance entering
            simulation and w5 is the native release-timing enum. A grade is
@@ -1789,6 +1798,10 @@ static void release_event_proxy(void *actor, int32_t timing, float arg0, float a
     store_float(g_release_arg0_bits, arg0);
     store_float(g_release_arg1_bits, arg1);
 
+    /* OFF suppresses all plugin-owned shotmeter feedback. The original game
+       release handler above still runs unchanged. */
+    if (g_plugin_enabled.load(std::memory_order_acquire) == 0) return;
+
     /* Only the tracked player's live normal jumpshot state is eligible. This
        rejects scripted/special/other-player event paths without guessing timing. */
     if (!actor || !tracked_before ||
@@ -1848,6 +1861,7 @@ static void release_event_proxy(void *actor, int32_t timing, float arg0, float a
 
 
 static void draw_overlay(EGLDisplay display, EGLSurface surface) {
+    if (g_plugin_enabled.load(std::memory_order_acquire) == 0) return;
     if (!g_component || g_anchor_valid.load(std::memory_order_acquire) == 0) return;
     const uintptr_t tracked = *reinterpret_cast<volatile uintptr_t *>(g_component + 0x08);
     const float raw = *reinterpret_cast<volatile float *>(g_component + 0x10);
@@ -1949,8 +1963,176 @@ static EGLBoolean swap_proxy(EGLDisplay display, EGLSurface surface) {
     return g_original_swap ? g_original_swap(display, surface) : EGL_FALSE;
 }
 
+static int32_t save_plugin_settings_internal(void) {
+    char path[256];
+    const int path_len = snprintf(path, sizeof(path), "%s/%s",
+                                  FILES_DIR, "shotmeter.plugin-settings-v1");
+    if (path_len <= 0 || static_cast<size_t>(path_len) >= sizeof(path))
+        return SHOTMETER_PLUGIN_ERROR_IO;
+
+    char contents[160];
+    const int length = snprintf(
+        contents, sizeof(contents),
+        "version=1\nenabled=%u\ndesign=%u\naudio=%u\ngreen_animation=%u\n",
+        g_plugin_enabled.load(std::memory_order_acquire),
+        g_selected_design.load(std::memory_order_acquire),
+        g_selected_audio.load(std::memory_order_acquire),
+        g_selected_green_animation.load(std::memory_order_acquire));
+    if (length <= 0 || static_cast<size_t>(length) >= sizeof(contents))
+        return SHOTMETER_PLUGIN_ERROR_IO;
+
+    const int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (fd < 0) return SHOTMETER_PLUGIN_ERROR_IO;
+    size_t written_total = 0;
+    while (written_total < static_cast<size_t>(length)) {
+        const ssize_t written = write(fd, contents + written_total,
+                                      static_cast<size_t>(length) - written_total);
+        if (written < 0 && errno == EINTR) continue;
+        if (written <= 0) {
+            close(fd);
+            return SHOTMETER_PLUGIN_ERROR_IO;
+        }
+        written_total += static_cast<size_t>(written);
+    }
+    const int sync_result = fsync(fd);
+    const int close_result = close(fd);
+    return (sync_result == 0 && close_result == 0)
+        ? SHOTMETER_PLUGIN_OK : SHOTMETER_PLUGIN_ERROR_IO;
+}
+
+static int32_t save_plugin_settings(void) {
+    pthread_mutex_lock(&g_plugin_settings_mutex);
+    const int32_t result = save_plugin_settings_internal();
+    pthread_mutex_unlock(&g_plugin_settings_mutex);
+    return result;
+}
+
+static void load_plugin_settings(void) {
+    char path[256];
+    const int path_len = snprintf(path, sizeof(path), "%s/%s",
+                                  FILES_DIR, "shotmeter.plugin-settings-v1");
+    if (path_len <= 0 || static_cast<size_t>(path_len) >= sizeof(path)) return;
+    const int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return;
+    char contents[256] = {};
+    const ssize_t count = read(fd, contents, sizeof(contents) - 1);
+    close(fd);
+    if (count <= 0) return;
+
+    unsigned version = 0, enabled = 1, design = 0, audio = 0, green_animation = 0;
+    const int fields = sscanf(contents,
+        "version=%u\nenabled=%u\ndesign=%u\naudio=%u\ngreen_animation=%u",
+        &version, &enabled, &design, &audio, &green_animation);
+    if (fields != 5 || version != SHOTMETER_PLUGIN_API_VERSION ||
+        enabled > 1 || design > 255 || audio > 255 || green_animation > 255)
+        return;
+
+    g_plugin_enabled.store(enabled, std::memory_order_release);
+    g_selected_design.store(design, std::memory_order_release);
+    g_selected_audio.store(audio, std::memory_order_release);
+    g_selected_green_animation.store(green_animation, std::memory_order_release);
+}
+
+extern "C" __attribute__((visibility("default")))
+uint32_t shotmeter_plugin_get_api_version(void) {
+    return SHOTMETER_PLUGIN_API_VERSION;
+}
+
+extern "C" __attribute__((visibility("default")))
+uint32_t shotmeter_plugin_get_capabilities(void) {
+    return SHOTMETER_PLUGIN_CAP_LIVE_ENABLE_DISABLE |
+           SHOTMETER_PLUGIN_CAP_PERSISTENT_SETTINGS |
+           SHOTMETER_PLUGIN_CAP_CUSTOMIZATION_STATE;
+}
+
+extern "C" __attribute__((visibility("default")))
+int32_t shotmeter_plugin_set_enabled(uint32_t enabled) {
+    if (enabled > 1) return SHOTMETER_PLUGIN_ERROR_ARGUMENT;
+    g_plugin_enabled.store(enabled, std::memory_order_release);
+    if (enabled == 0) {
+        g_result_until_ns.store(0, std::memory_order_release);
+        g_perfect_until_ns.store(0, std::memory_order_release);
+        g_sound_requests.store(0, std::memory_order_release);
+        pthread_mutex_lock(&g_sound_mutex);
+        if (g_sl_play) (void)(*g_sl_play)->SetPlayState(g_sl_play, SL_PLAYSTATE_STOPPED);
+        if (g_sl_queue) (void)(*g_sl_queue)->Clear(g_sl_queue);
+        pthread_mutex_unlock(&g_sound_mutex);
+    }
+    return save_plugin_settings();
+}
+
+extern "C" __attribute__((visibility("default")))
+uint32_t shotmeter_plugin_get_enabled(void) {
+    return g_plugin_enabled.load(std::memory_order_acquire);
+}
+
+extern "C" __attribute__((visibility("default")))
+int32_t shotmeter_plugin_open_customization(void) {
+    g_customization_open.store(1, std::memory_order_release);
+    return SHOTMETER_PLUGIN_OK;
+}
+
+extern "C" __attribute__((visibility("default")))
+int32_t shotmeter_plugin_close_customization(void) {
+    g_customization_open.store(0, std::memory_order_release);
+    return SHOTMETER_PLUGIN_OK;
+}
+
+extern "C" __attribute__((visibility("default")))
+uint32_t shotmeter_plugin_is_customization_open(void) {
+    return g_customization_open.load(std::memory_order_acquire);
+}
+
+extern "C" __attribute__((visibility("default")))
+int32_t shotmeter_plugin_set_selection(uint32_t category, uint32_t selection_id) {
+    if (selection_id > 255) return SHOTMETER_PLUGIN_ERROR_ARGUMENT;
+    switch (category) {
+        case SHOTMETER_PLUGIN_CATEGORY_DESIGN:
+            g_selected_design.store(selection_id, std::memory_order_release);
+            break;
+        case SHOTMETER_PLUGIN_CATEGORY_AUDIO:
+            g_selected_audio.store(selection_id, std::memory_order_release);
+            break;
+        case SHOTMETER_PLUGIN_CATEGORY_GREEN_ANIMATION:
+            g_selected_green_animation.store(selection_id, std::memory_order_release);
+            break;
+        default:
+            return SHOTMETER_PLUGIN_ERROR_ARGUMENT;
+    }
+    return save_plugin_settings();
+}
+
+extern "C" __attribute__((visibility("default")))
+int32_t shotmeter_plugin_get_selection(uint32_t category) {
+    switch (category) {
+        case SHOTMETER_PLUGIN_CATEGORY_DESIGN:
+            return static_cast<int32_t>(g_selected_design.load(std::memory_order_acquire));
+        case SHOTMETER_PLUGIN_CATEGORY_AUDIO:
+            return static_cast<int32_t>(g_selected_audio.load(std::memory_order_acquire));
+        case SHOTMETER_PLUGIN_CATEGORY_GREEN_ANIMATION:
+            return static_cast<int32_t>(g_selected_green_animation.load(std::memory_order_acquire));
+        default:
+            return SHOTMETER_PLUGIN_ERROR_ARGUMENT;
+    }
+}
+
+extern "C" __attribute__((visibility("default")))
+int32_t shotmeter_plugin_flush_settings(void) {
+    return save_plugin_settings();
+}
+
+extern "C" __attribute__((visibility("default")))
+uint32_t shotmeter_plugin_get_init_state(void) {
+    return g_init_state.load(std::memory_order_acquire);
+}
+
 static jint initialize_agent(void) {
     g_attach_calls.fetch_add(1, std::memory_order_relaxed);
+    uint32_t settings_expected = 0;
+    if (g_plugin_settings_loaded.compare_exchange_strong(
+            settings_expected, 1, std::memory_order_acq_rel)) {
+        load_plugin_settings();
+    }
     uint32_t expected = 0;
     if (!g_init_state.compare_exchange_strong(expected, 1, std::memory_order_acq_rel)) {
         g_duplicate_attach_calls.fetch_add(1, std::memory_order_relaxed);
