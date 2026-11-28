@@ -31,11 +31,12 @@ All addresses below are ELF virtual addresses. Callback fields refer to function
 
 The existing records also have `+0xE88 = 1` and `+0xE98 = 0xFFFFFFFF`. These fields are preserved; their semantics have not yet been established.
 
-## Nine-entry limit to solve
-- `NavigationMenu_GetSubItemByIndex` at VA `0xF43F98` explicitly rejects indices above 7 at `0xF43FA0` (`cmp w2, #7`).
-- The function otherwise scans a runtime array of 0x38-byte records, with up to 64 candidate records.
-- To append POT MOD as a ninth visible row, it is not sufficient to change only the descriptor count. The ninth record must be added in the correct 0xEA8 layout, and the explicit index limit must be addressed.
-- Other navigation paths use the menu descriptor count dynamically, but all relevant call paths and hard-coded assumptions still require review before patching.
+## Ninth OPTIONS row: allocation and index-limit findings
+- The 8 existing OPTIONS records occupy exactly `8 * 0xEA8 = 0x7540` bytes, from `0x2AB3528` through the exclusive end address `0x2ABAA68`.
+- `SlideOnNav_PlayoffsOptionsMenu` begins its own two-record table at exactly `0x2ABAA68`. Its descriptor is at `0x2AB3368`, base pointer at `+0x58 = 0x2ABAA68`, count at `+0xB0 = 2`. Therefore the apparent ninth slot is occupied by the Playoffs Options table and must not be overwritten.
+- `NavigationMenu_GetSubItemByIndex` at VA `0xF43F98` rejects an index above 7 at `0xF43FA0` (`cmp w2, #7`). Its implementation scans 0x38-byte child-subitem records inside a runtime item; this is a nested-subitem lookup, not the outer OPTIONS row-array lookup. Do not assume this check is the outer menu's nine-row limit.
+- The outer row accessors `NavigationMenu_GetItemInstanceByRawRow`, `NavigationMenu_GetItemInstanceByDisplayRow`, and `NavigationMenu_GetNumberOfEnabledItems` use the descriptor's `+0xB0` count and `+0x58` base pointer dynamically. The outer display-row scan advances by `0xEA8`.
+- A ninth outer row therefore needs a separately allocated/copied 9-record `0xEA8` table (or an equally safe reserved region), with the same existing OPTIONS descriptor redirected to it and count updated. The Playoffs table must remain untouched. Before implementation, the activation path and the new row's `MENU_NAVIGATION_INSTANCE_ITEM` initialization/callback fields still need to be fully defined.
 
 ## Native GAMEPLAY row template
 - Menu page symbol: `OptionsMenu_GamePlay` at VA `0x273A008`, size 224.
