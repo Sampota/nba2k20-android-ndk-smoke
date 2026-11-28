@@ -10,10 +10,21 @@
 ## OPTIONS slide-on menu
 - Descriptor symbol: `SlideOnNav_OptionsMenu` at ELF VA `0x2ab3288`, size 224.
 - Child-entry base pointer: descriptor offset `+0x58` -> `0x2ab3528`.
-- Entry count: descriptor offset `+0xB0` -> 8 (re-read directly from the file-backed `.data` object).
+- Entry count: descriptor offset `+0xB0` -> 8.
 - Entry stride: `0xEA8` bytes, not `0x38`.
 - This stride is verified in the game's own `NavigationMenu_SetupItems` (VA `0xF40748`) and `NavigationMenu_CreateMenuItems` (VA `0xF40978`). Both use the descriptor count at `+0xB0`, base pointer at `+0x58`, and iterate by `0xEA8`.
 - The previous 0x38 scan of the outer OPTIONS table was incorrect. The 0x38 stride appears in nested/runtime sub-item structures.
+
+## Actual POT MOD insertion point under 2K NAV
+The user's requested route is `2K NAV -> OPTIONS -> POT MOD`. The relevant menu is the nested subitem list attached to the OPTIONS row in `SlideOnNav_MainMenu`, not a ninth row in the separate `SlideOnNav_OptionsMenu` destination table.
+
+- `SlideOnNav_MainMenu` descriptor at `0x2AA6EC0`: base `+0x58 = 0x2AA2578`, outer count `+0xB0 = 5`.
+- Outer row index 1 is at `0x2AA3420` (type 5). Its nested subitem descriptors start at `0x2AA3468` = parent record `+0x48`.
+- Nested subitem descriptor stride is `0x38`. The first five child slots (indices 0–4) have data; child slot 5 at `0x2AA3580` is currently all zero. Slots 6 and 7 are also zero.
+- The engine's `NavigationMenu_SetupItems` iterates up to 64 nested subitem slots at offsets `+0x48 + n*0x38`, invoking any non-null setup callback at child offset `+0x00` with its runtime child instance.
+- The user-selection path `NavigationMenu_SlideOn_Select` converts the raw cursor row to a nested subitem index and accepts indices 0..7 before obtaining the runtime child via `NavigationMenu_GetSubItemByIndex`.
+- Thus slot 5 is inside the supported first eight nested subitem indices and is a better POT MOD insertion candidate than modifying the separate outer `SlideOnNav_OptionsMenu` array. The immediate next task is to establish the runtime child record fields populated from this static descriptor and confirm the submenu activation route before writing the CRC/callback fields.
+- Do not overwrite `SlideOnNav_OptionsMenu` or the adjacent Playoffs table.
 
 ## Eight existing OPTIONS records
 All addresses below are ELF virtual addresses. Callback fields refer to function pointers stored in each 0xEA8 record. The CRC values are recorded as opaque identifiers; labels are not asserted from CRC guesses.
@@ -41,7 +52,7 @@ The existing records also have `+0xE88 = 1` and `+0xE98 = 0xFFFFFFFF`. These fie
 ## Native GAMEPLAY row template
 - Menu page symbol: `OptionsMenu_GamePlay` at VA `0x273A008`, size 224.
 - Row pointer at page offset `+0x60` -> `0x273A9E0`.
-- Row count at page offset `+0xB0` -> 17 (re-read directly from the file-backed `.data` object).
+- Row count at page offset `+0xB4` -> 17.
 - Difficulty is row 0 at `0x273A9E0`; the native option-record stride is `0x38`.
 - Difficulty row fields: type `1`, name CRC `0x36288E4D`, description CRC `0x602E2CBC`, interface object pointer `0x2E673E0`.
 - The interface type is `MENU_OPTION_ITEM_BOOLRADIOBUTTON_INTERFACE`:
