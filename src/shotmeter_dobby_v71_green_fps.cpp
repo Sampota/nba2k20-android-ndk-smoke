@@ -17,6 +17,7 @@
 #include <atomic>
 #include <cmath>
 #include <string>
+#include <stdlib.h>
 #include <time.h>
 #include <vector>
 
@@ -122,6 +123,12 @@ static int g_self_original = -999, g_self_patched = -999;
 static int g_do_draw_code = -999, g_swap_code = -999, g_release_event_code = -999;
 static std::atomic<uint32_t> g_attach_calls{0}, g_duplicate_attach_calls{0};
 static std::atomic<uint32_t> g_init_state{0};
+static uintptr_t g_game_base = 0;
+static void *g_pot_options_rows = nullptr;
+static void *g_pot_page_descriptor = nullptr;
+static void *g_pot_page_rows = nullptr;
+static void *g_pot_toggle_interface = nullptr;
+static std::atomic<int32_t> g_pot_menu_install_state{0};
 static std::atomic<uint32_t> g_plugin_enabled{0};
 static std::atomic<uint32_t> g_customization_open{0};
 static std::atomic<uint32_t> g_plugin_settings_loaded{0};
@@ -457,6 +464,7 @@ static bool derive_saved_view(void) {
     Dl_info info{};
     if (dladdr(g_saved_getter_address, &info) == 0 || !info.dli_fbase) return false;
     const uintptr_t gameBase = reinterpret_cast<uintptr_t>(info.dli_fbase);
+    g_game_base = gameBase;
     g_saved_view = gameBase + kManagerOffset + kSavedViewOffset;
     return true;
 }
@@ -2632,6 +2640,165 @@ uint32_t shotmeter_plugin_get_init_state(void) {
     return g_init_state.load(std::memory_order_acquire);
 }
 
+
+/* Native POT MOD page integration.
+ * Clone the game's own one-row MENU page shape and Difficulty-style toggle
+ * object, then redirect the native SlideOnNav_OptionsMenu descriptor to a
+ * nine-row copy. The original eight rows and the adjacent Playoffs table stay
+ * untouched. All custom allocations live for the plugin lifetime.
+ */
+static constexpr uintptr_t kSlideOptionsDescriptorOffset = 0x2AB3288ULL;
+static constexpr uintptr_t kDebugOneRowMenuTemplateOffset = 0x295CE18ULL;
+static constexpr uintptr_t kGameplayToggleRowTemplateOffset = 0x273A9E0ULL;
+static constexpr uintptr_t kToggleInterfaceConstructorOffset = 0x0F3F3ACULL;
+static constexpr uintptr_t kToggleValueStringFunctionOffset = 0x0E01C08ULL;
+static constexpr uintptr_t kVcTextDrawPltOffset = 0x00BC9040ULL;
+static constexpr size_t kMenuDescriptorBytes = 0xE0U;
+static constexpr size_t kOptionRowBytes = 0x38U;
+static constexpr size_t kSlideOptionRowStride = 0xEA8U;
+static constexpr uint32_t kPotModPageNameCrc = 0x6058305FU;  // CRC32("POT_MOD")
+static constexpr uint32_t kShotmeterRowNameCrc = 0x5947D8D8U; // CRC32("shotmeter")
+
+using NativeToggleCtorFn = void (*)(void *, bool (*)(void), bool (*)(void),
+                                    void (*)(void *), uint32_t);
+using NativeValueStringFn = uint32_t (*)(int32_t);
+using NativeTextDrawFn = void (*)(void *, uint32_t, void *);
+
+static bool pot_mod_toggle_increment(void) {
+    const bool was_enabled = g_plugin_enabled.load(std::memory_order_acquire) != 0;
+    const int32_t set_result = shotmeter_plugin_set_enabled(1);
+    if (!was_enabled) (void)shotmeter_plugin_open_customization();
+    LOGI("POT MOD native toggle increment: previous=%u set_result=%d",
+         was_enabled ? 1U : 0U, set_result);
+    return true;
+}
+
+static bool pot_mod_toggle_decrement(void) {
+    const bool was_enabled = g_plugin_enabled.load(std::memory_order_acquire) != 0;
+    const int32_t set_result = shotmeter_plugin_set_enabled(0);
+    if (was_enabled) (void)shotmeter_plugin_close_customization();
+    LOGI("POT MOD native toggle decrement: previous=%u set_result=%d",
+         was_enabled ? 1U : 0U, set_result);
+    return true;
+}
+
+static void pot_mod_toggle_draw_value(void *game_text) {
+    if (!game_text || g_game_base == 0) return;
+    const auto get_value_string = reinterpret_cast<NativeValueStringFn>(
+        g_game_base + kToggleValueStringFunctionOffset);
+    const auto draw_text = reinterpret_cast<NativeTextDrawFn>(
+        g_game_base + kVcTextDrawPltOffset);
+    const int32_t enabled = g_plugin_enabled.load(std::memory_order_acquire) ? 1 : 0;
+    const uint32_t string_crc = get_value_string(enabled);
+    uint64_t empty_args = 0;
+    draw_text(game_text, string_crc, &empty_args);
+}
+
+static bool install_native_pot_mod_menu(void) {
+    int32_t expected_state = 0;
+    if (!g_pot_menu_install_state.compare_exchange_strong(
+            expected_state, 1, std::memory_order_acq_rel)) {
+        return expected_state == 2;
+    }
+    if (!g_game || g_game_base == 0) {
+        g_pot_menu_install_state.store(3, std::memory_order_release);
+        LOGE("POT MOD menu install failed: game handle/base unavailable");
+        return false;
+    }
+
+    auto *options_descriptor = reinterpret_cast<uint8_t *>(
+        g_game_base + kSlideOptionsDescriptorOffset);
+    auto *page_template = reinterpret_cast<const uint8_t *>(
+        g_game_base + kDebugOneRowMenuTemplateOffset);
+    auto *row_template = reinterpret_cast<const uint8_t *>(
+        g_game_base + kGameplayToggleRowTemplateOffset);
+
+    uintptr_t old_rows_address = 0;
+    uint32_t old_count = 0;
+    memcpy(&old_rows_address, options_descriptor + 0x58, sizeof(old_rows_address));
+    memcpy(&old_count, options_descriptor + 0xB0, sizeof(old_count));
+    if (!old_rows_address || old_count != 8) {
+        g_pot_menu_install_state.store(3, std::memory_order_release);
+        LOGE("POT MOD menu install refused: unexpected OPTIONS descriptor base=%p count=%u",
+             reinterpret_cast<void *>(old_rows_address), old_count);
+        return false;
+    }
+
+    auto *new_options_rows = static_cast<uint8_t *>(
+        calloc(9U, kSlideOptionRowStride));
+    auto *new_page_descriptor = static_cast<uint8_t *>(
+        calloc(1U, kMenuDescriptorBytes));
+    auto *new_page_rows = static_cast<uint8_t *>(
+        calloc(1U, kOptionRowBytes));
+    auto *new_toggle_interface = static_cast<uint8_t *>(calloc(1U, 0x38U));
+    if (!new_options_rows || !new_page_descriptor ||
+        !new_page_rows || !new_toggle_interface) {
+        free(new_options_rows);
+        free(new_page_descriptor);
+        free(new_page_rows);
+        free(new_toggle_interface);
+        g_pot_menu_install_state.store(3, std::memory_order_release);
+        LOGE("POT MOD menu install failed: allocation failure");
+        return false;
+    }
+
+    memcpy(new_options_rows, reinterpret_cast<const void *>(old_rows_address),
+           8U * kSlideOptionRowStride);
+    memcpy(new_page_descriptor, page_template, kMenuDescriptorBytes);
+    memcpy(new_page_rows, row_template, kOptionRowBytes);
+
+    const auto toggle_ctor = reinterpret_cast<NativeToggleCtorFn>(
+        g_game_base + kToggleInterfaceConstructorOffset);
+    toggle_ctor(new_toggle_interface,
+                &pot_mod_toggle_increment,
+                &pot_mod_toggle_decrement,
+                &pot_mod_toggle_draw_value,
+                0U);
+
+    /* The normal gameplay row is a type-1 native toggle row. Reuse only its
+       row layout; its original Difficulty interface object is not reused. */
+    const uint32_t row_type = 1U;
+    const uint32_t zero_crc = 0U;
+    memcpy(new_page_rows + 0x00, &row_type, sizeof(row_type));
+    memcpy(new_page_rows + 0x04, &kShotmeterRowNameCrc, sizeof(kShotmeterRowNameCrc));
+    memcpy(new_page_rows + 0x08, &zero_crc, sizeof(zero_crc));
+    memcpy(new_page_rows + 0x10, &new_toggle_interface, sizeof(new_toggle_interface));
+
+    /* A standard MENU descriptor stores its option-row pointer at +0x60 and
+       row count at +0xB4. The cloned template already carries the native page
+       event handler and layout/style pointers. */
+    memcpy(new_page_descriptor + 0x60, &new_page_rows, sizeof(new_page_rows));
+    const uint32_t one_row = 1U;
+    memcpy(new_page_descriptor + 0xB4, &one_row, sizeof(one_row));
+    memcpy(new_page_descriptor + 0x0C, &kPotModPageNameCrc,
+           sizeof(kPotModPageNameCrc));
+
+    /* Existing type-5 rows use a MENU* at +0x28. Clone the Presentation page
+       entry's native shape, then point it at the newly created POT MOD page. */
+    uint8_t *pot_row = new_options_rows + 8U * kSlideOptionRowStride;
+    memcpy(pot_row, new_options_rows + 7U * kSlideOptionRowStride,
+           kSlideOptionRowStride);
+    memcpy(pot_row + 0x08, &kPotModPageNameCrc, sizeof(kPotModPageNameCrc));
+    memcpy(pot_row + 0x10, &kPotModPageNameCrc, sizeof(kPotModPageNameCrc));
+    memcpy(pot_row + 0x28, &new_page_descriptor, sizeof(new_page_descriptor));
+
+    /* Publish the new row array first; raise count last so the game never sees
+       a count of nine with an incomplete ninth record. */
+    memcpy(options_descriptor + 0x58, &new_options_rows, sizeof(new_options_rows));
+    const uint32_t nine_rows = 9U;
+    __atomic_store_n(reinterpret_cast<uint32_t *>(options_descriptor + 0xB0),
+                     nine_rows, __ATOMIC_RELEASE);
+
+    g_pot_options_rows = new_options_rows;
+    g_pot_page_descriptor = new_page_descriptor;
+    g_pot_page_rows = new_page_rows;
+    g_pot_toggle_interface = new_toggle_interface;
+    g_pot_menu_install_state.store(2, std::memory_order_release);
+    LOGI("POT MOD native menu installed: OPTIONS rows 8->9, page=%p row=%p toggle=%p",
+         new_page_descriptor, new_page_rows, new_toggle_interface);
+    return true;
+}
+
 static jint initialize_agent(void) {
     g_attach_calls.fetch_add(1, std::memory_order_relaxed);
     uint32_t settings_expected = 0;
@@ -2693,6 +2860,9 @@ static jint initialize_agent(void) {
         g_get_distance = reinterpret_cast<DistanceFn>(g_distance_address);
         g_translate_grade = reinterpret_cast<GradeFn>(g_grade_address);
         const bool view_ok = derive_saved_view();
+        const bool pot_menu_ok = install_native_pot_mod_menu();
+        LOGI("POT MOD native menu initialization state=%d",
+             pot_menu_ok ? 2 : g_pot_menu_install_state.load(std::memory_order_acquire));
         if (g_do_draw_address && g_get_head && g_project && view_ok) {
             void *original = nullptr;
             g_do_draw_code = DobbyHook(g_do_draw_address, (void *)&do_draw_proxy, &original);
