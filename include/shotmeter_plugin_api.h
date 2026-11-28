@@ -27,9 +27,9 @@ extern "C" {
  * Selection IDs are opaque to the main game library. The shotmeter plugin
  * owns their meaning and persistence. IDs 0..255 are accepted in API v1.
  *
- * API v1 exposes customization-open state and saved selections. The visual
- * customization renderer/input surface is a separate plugin implementation
- * milestone; opening the state flag alone does not claim that UI is rendered.
+ * The shotmeter plugin owns the separate customization UI and all selection
+ * semantics. The main game library only consumes this stable C ABI; it must
+ * not depend on design IDs, preview renderer internals, or plugin assets.
  */
 uint32_t shotmeter_plugin_get_api_version(void);
 uint32_t shotmeter_plugin_get_capabilities(void);
