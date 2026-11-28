@@ -65,6 +65,24 @@ The existing records also have `+0xE88 = 1` and `+0xE98 = 0xFFFFFFFF`. These fie
 - Constructor signature from the exported symbol: `(_bool (*)(), _bool (*)(), void (*)(GAMETEXT*, int), _bool (*)())`.
 - Base option name and description rendering use the row's name/description string CRCs through `Localize_DrawText`. The native toggle interface uses its four stored callbacks for left/right, value rendering, and boolean readback.
 
+## Native one-row toggle template
+The clean binary's GAMEPLAY settings page provides the requested control class:
+
+- `OptionsMenu_GamePlay` descriptor VA: `0x273A008`.
+- Difficulty row 0 VA: `0x273A9E0`; native interface object at `0x2E673E0`.
+- Interface class: `MENU_OPTION_ITEM_TOGGLE_INTERFACE`.
+- Constructor: VA `0xF3F3AC`; signature `(_bool (*)(), _bool (*)(), void (*)(GAMETEXT*), string_crc)`.
+- Constructor stores the localized string CRC at interface `+0x18`, draw callback at `+0x20`, increment callback at `+0x28`, decrement callback at `+0x30`.
+- `IncrementValue` at `0xF3F454` dispatches the callback at `+0x28`; `DecrementValue` at `0xF3F468` dispatches `+0x30`.
+- Difficulty uses handlers `GlobalData_IncDifficulty` (`0xDF08D8`), `GlobalData_DecDifficulty` (`0xDF0994`), and `GlobalData_DrawDifficultyText` (`0xDF0A90`). Do not reuse these handlers because they modify actual game difficulty.
+- `GlobalData_GetPlaylistPanelEnabledValueStringCrc(int)` at `0xDFCEA0` returns localized On/Off string CRC from a two-entry table. A POT callback can pass the plugin enabled state (0/1) and use the returned CRC with `VCTEXT::Draw(GAMETEXT*, string_crc, __vcc_va_list_t*)` to draw localized OFF/ON text.
+
+Proposed POT MOD toggle callbacks (still to implement in the main-menu integration):
+- Increment: enable the shotmeter plugin; when the old value was OFF, open the separate customization screen.
+- Decrement: disable the shotmeter plugin and close customization if it is open.
+- Draw: get plugin enabled state, resolve localized On/Off CRC through the native helper, and call the game's text draw function.
+- GetBoolValue: return the plugin's enabled state using the stock callback contract expected by the menu row.
+
 ## What this confirms / what it does not
 Confirmed:
 - The clean ELF contains the `SlideOnNav_OptionsMenu` descriptor and all eight current outer records in file-backed `.data`; the correct outer stride is 0xEA8 and the outer row accessors use the descriptor count dynamically.
