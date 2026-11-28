@@ -52,6 +52,7 @@ using DoDrawFn = void (*)(void *, void *);
 using HeadFn = void (*)(void *, float *);
 using ProjectFn = float (*)(const void *, const float *, float *);
 using SwapFn = EGLBoolean (*)(EGLDisplay, EGLSurface);
+using PushTouchEventFn = void (*)(void *, int32_t, int32_t, float, float, int32_t);
 using TestFn = int (*)(int);
 using ReleaseFn = void (*)(void *, int32_t, float, float);
 using BalancedDiceFn = void (*)(void *, void *, int32_t, float, bool, int32_t, int32_t);
@@ -68,12 +69,23 @@ static void *g_head_address = nullptr;
 static void *g_saved_getter_address = nullptr;
 static void *g_project_address = nullptr;
 static void *g_swap_address = nullptr;
+static void *g_push_touch_event_address = nullptr;
 static void *g_release_event_address = nullptr;
 static DoDrawFn g_original_do_draw = nullptr;
 static HeadFn g_get_head = nullptr;
 static ProjectFn g_project = nullptr;
 static SwapFn g_original_swap = nullptr;
+static PushTouchEventFn g_original_push_touch_event = nullptr;
 static ReleaseFn g_original_release_event = nullptr;
+static int g_touch_event_hook_code = -999;
+static std::atomic<uint32_t> g_touch_event_counts[4]{};
+static std::atomic<uint32_t> g_touch_event_invalid{0};
+static std::atomic<int32_t> g_ui_touch_pointer_id{-1};
+static std::atomic<uint32_t> g_ui_touch_down{0};
+static std::atomic<uint32_t> g_ui_tap_sequence{0};
+static std::atomic<uint32_t> g_ui_tap_consumed{0};
+static std::atomic<uint32_t> g_ui_tap_x_bits{0}, g_ui_tap_y_bits{0};
+static std::atomic<uint32_t> g_ui_touch_x_bits{0}, g_ui_touch_y_bits{0};
 static void *g_balanced_dice_address = nullptr;
 static void *g_get_location_address = nullptr;
 static void *g_distance_address = nullptr;
@@ -1964,6 +1976,60 @@ static EGLBoolean swap_proxy(EGLDisplay display, EGLSurface surface) {
     return g_original_swap ? g_original_swap(display, surface) : EGL_FALSE;
 }
 
+/*
+ * Native touch ingress contract verified from VCBoot_AndroidMain:
+ * event type 0=down, 1=up, 2=move, 3=cancel; coordinates are normalized
+ * against the current game surface. While the plugin customization page is
+ * modal, do not forward those events to VCTOUCH_DEVICE's game queue.
+ */
+static void touch_event_proxy(void *device, int32_t event_type, int32_t pointer_id,
+                              float x, float y, int32_t flags) {
+    if (g_customization_open.load(std::memory_order_acquire) != 0) {
+        if (event_type < 0 || event_type > 3 ||
+            !std::isfinite(x) || !std::isfinite(y)) {
+            g_touch_event_invalid.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
+        g_touch_event_counts[event_type].fetch_add(1, std::memory_order_relaxed);
+        store_float(g_ui_touch_x_bits, x);
+        store_float(g_ui_touch_y_bits, y);
+
+        if (event_type == 0) {
+            int32_t expected_pointer = -1;
+            if (g_ui_touch_pointer_id.compare_exchange_strong(
+                    expected_pointer, pointer_id, std::memory_order_acq_rel)) {
+                g_ui_touch_down.store(1, std::memory_order_release);
+            }
+        } else if (g_ui_touch_pointer_id.load(std::memory_order_acquire) == pointer_id) {
+            if (event_type == 1) {
+                store_float(g_ui_tap_x_bits, x);
+                store_float(g_ui_tap_y_bits, y);
+                g_ui_tap_sequence.fetch_add(1, std::memory_order_acq_rel);
+                g_ui_touch_down.store(0, std::memory_order_release);
+                g_ui_touch_pointer_id.store(-1, std::memory_order_release);
+            } else if (event_type == 3) {
+                g_ui_touch_down.store(0, std::memory_order_release);
+                g_ui_touch_pointer_id.store(-1, std::memory_order_release);
+            }
+        }
+        return;
+    }
+
+    const PushTouchEventFn original = g_original_push_touch_event;
+    if (original) original(device, event_type, pointer_id, x, y, flags);
+}
+
+static bool take_customization_tap(float *x, float *y) {
+    if (!x || !y) return false;
+    const uint32_t sequence = g_ui_tap_sequence.load(std::memory_order_acquire);
+    const uint32_t consumed = g_ui_tap_consumed.load(std::memory_order_relaxed);
+    if (sequence == consumed) return false;
+    *x = load_float(g_ui_tap_x_bits);
+    *y = load_float(g_ui_tap_y_bits);
+    g_ui_tap_consumed.store(sequence, std::memory_order_release);
+    return true;
+}
+
 static int32_t save_plugin_settings_internal(void) {
     char path[256];
     const int path_len = snprintf(path, sizeof(path), "%s/%s",
@@ -2073,6 +2139,9 @@ uint32_t shotmeter_plugin_get_enabled(void) {
 
 extern "C" __attribute__((visibility("default")))
 int32_t shotmeter_plugin_open_customization(void) {
+    g_ui_touch_pointer_id.store(-1, std::memory_order_release);
+    g_ui_touch_down.store(0, std::memory_order_release);
+    g_ui_tap_consumed.store(g_ui_tap_sequence.load(std::memory_order_acquire), std::memory_order_release);
     g_customization_open.store(1, std::memory_order_release);
     return SHOTMETER_PLUGIN_OK;
 }
@@ -2080,6 +2149,8 @@ int32_t shotmeter_plugin_open_customization(void) {
 extern "C" __attribute__((visibility("default")))
 int32_t shotmeter_plugin_close_customization(void) {
     g_customization_open.store(0, std::memory_order_release);
+    g_ui_touch_down.store(0, std::memory_order_release);
+    g_ui_touch_pointer_id.store(-1, std::memory_order_release);
     return SHOTMETER_PLUGIN_OK;
 }
 
@@ -2183,6 +2254,7 @@ static jint initialize_agent(void) {
         g_saved_getter_address = resolve(g_game, kSavedGetterSymbol);
         g_project_address = resolve(g_game, kProjectSymbol);
         g_swap_address = resolve(g_game, kSwapSymbol);
+        g_push_touch_event_address = resolve(g_game, "_ZN14VCTOUCH_DEVICE9PushEventE17VCTOUCHEVENT_TYPEiffi");
         g_release_event_address = resolve(g_game, kReleaseEventSymbol);
         g_balanced_dice_address = resolve(g_game, kBalancedDiceSymbol);
         g_get_location_address = resolve(g_game, kGetLocationSymbol);
@@ -2204,6 +2276,12 @@ static jint initialize_agent(void) {
             g_swap_code = DobbyHook(g_swap_address, (void *)&swap_proxy, &original);
             g_original_swap = reinterpret_cast<SwapFn>(original);
         } else g_swap_code = -1003;
+        if (g_push_touch_event_address) {
+            void *original_touch = nullptr;
+            g_touch_event_hook_code = DobbyHook(g_push_touch_event_address,
+                (void *)&touch_event_proxy, &original_touch);
+            g_original_push_touch_event = reinterpret_cast<PushTouchEventFn>(original_touch);
+        } else g_touch_event_hook_code = -1006;
         if (g_release_event_address) {
             void *original_release = nullptr;
             g_release_event_code = DobbyHook(g_release_event_address,
