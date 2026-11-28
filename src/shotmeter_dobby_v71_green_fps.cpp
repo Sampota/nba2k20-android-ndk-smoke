@@ -109,7 +109,7 @@ static int g_self_original = -999, g_self_patched = -999;
 static int g_do_draw_code = -999, g_swap_code = -999, g_release_event_code = -999;
 static std::atomic<uint32_t> g_attach_calls{0}, g_duplicate_attach_calls{0};
 static std::atomic<uint32_t> g_init_state{0};
-static std::atomic<uint32_t> g_plugin_enabled{1};
+static std::atomic<uint32_t> g_plugin_enabled{0};
 static std::atomic<uint32_t> g_customization_open{0};
 static std::atomic<uint32_t> g_plugin_settings_loaded{0};
 static std::atomic<uint32_t> g_selected_design{0};
@@ -2019,7 +2019,7 @@ static void load_plugin_settings(void) {
     close(fd);
     if (count <= 0) return;
 
-    unsigned version = 0, enabled = 1, design = 0, audio = 0, green_animation = 0;
+    unsigned version = 0, enabled = 0, design = 0, audio = 0, green_animation = 0;
     const int fields = sscanf(contents,
         "version=%u\nenabled=%u\ndesign=%u\naudio=%u\ngreen_animation=%u",
         &version, &enabled, &design, &audio, &green_animation);
